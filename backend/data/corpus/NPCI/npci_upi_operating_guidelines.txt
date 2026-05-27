@@ -1,0 +1,16 @@
+NPCI — UPI OPERATING & COMPLIANCE GUIDELINES FOR BANKING PARTICIPANTS
+
+Chapter 1 — Participant Obligations
+All member banks must maintain 99.5% UPI availability SLA. Settlement disputes shall be resolved within T+1 working day.
+
+Chapter 2 — Transaction Limits
+Per-transaction limit for P2P: INR 1,00,000. Merchant category codes (MCC) determine MDR caps. Velocity checks mandatory for new VPA registrations.
+
+Chapter 3 — Fraud Monitoring
+Banks shall implement real-time fraud scoring on UPI collect requests. Mule account detection using graph analytics is recommended.
+
+Chapter 4 — Dispute Resolution
+Customer complaints must be acknowledged within 24 hours. Chargeback cycle: 5 days for technical declines, 15 days for fraud claims.
+
+Chapter 5 — Compliance Reporting
+Monthly MIS on failed transactions, fraud cases, and downtime to NPCI by 5th of following month.

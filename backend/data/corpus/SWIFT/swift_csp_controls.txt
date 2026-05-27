@@ -1,0 +1,16 @@
+SWIFT CUSTOMER SECURITY PROGRAMME (CSP) — MANDATORY SECURITY CONTROLS FOR BANKS
+
+Control 1 — Restrict Internet Access
+SWIFT-related infrastructure must be isolated. Internet access only via jump servers with MFA.
+
+Control 2 — Segregation of Duties
+Payment message creation, approval, and transmission require separate roles. Four-eyes principle for amounts above USD 100,000.
+
+Control 3 — Transaction Monitoring
+Daily reconciliation of SWIFT FIN messages against core banking ledger. Anomaly detection for beneficiary changes.
+
+Control 4 — Attestation
+Annual CSP self-attestation submitted to SWIFT by 31 December. Independent assessment required for Category A institutions.
+
+Control 5 — Incident Response
+Report security incidents affecting SWIFT connectivity within 24 hours to SWIFT ISAC and local regulator.

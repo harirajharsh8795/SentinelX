@@ -1,0 +1,18 @@
+ISO/IEC 27001:2022 — INFORMATION SECURITY MANAGEMENT SYSTEM (ISMS) — ANNEX A SUMMARY
+
+A.5 — Organizational Controls
+Information security policies shall be approved by top management, reviewed annually, and communicated to all personnel and relevant external parties.
+
+A.6 — People Controls
+Background verification for candidates handling sensitive data. Security awareness training at onboarding and annually thereafter.
+
+A.8 — Technological Controls
+Asset inventory with ownership assignment. Vulnerability management with defined remediation SLAs: Critical 7 days, High 30 days.
+
+A.8.24 — Cryptography
+Encryption at rest (AES-256) and in transit (TLS 1.2+) for customer PII and payment card data. Key rotation every 12 months.
+
+A.5.29 — Business Continuity
+RTO of 4 hours and RPO of 1 hour for critical banking systems. Annual BCP drill with documented lessons learned.
+
+Certification audit cycle: Surveillance audit annually, recertification every 3 years by accredited body.

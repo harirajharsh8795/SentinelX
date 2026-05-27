@@ -1,0 +1,16 @@
+SEBI — LISTING OBLIGATIONS AND DISCLOSURE REQUIREMENTS (LODR) — CYBERSECURITY & RESILIENCE
+
+Regulation 27 — Risk Management Committee
+Listed entities must constitute a Risk Management Committee with at least one independent director having cybersecurity expertise.
+
+Regulation 47 — Cybersecurity and Cyber Resilience Framework
+Market Infrastructure Institutions (MIIs) and stock brokers shall implement:
+- Annual VAPT (Vulnerability Assessment and Penetration Testing)
+- 6-hour incident reporting to SEBI for critical cyber events
+- Board-approved Cyber Crisis Management Plan (CCMP)
+
+Regulation 30 — Material Event Disclosure
+Cyber incidents affecting operations, customer data, or trading systems must be disclosed to stock exchanges within 24 hours.
+
+Annexure — Data Localization
+Critical securities market data shall be stored within India. Cross-border transfer requires prior SEBI approval.

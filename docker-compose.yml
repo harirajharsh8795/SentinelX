@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  backend:
+    build: 
+      context: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=sqlite:///./sentinel_v2.db
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+    volumes:
+      - ./backend/sentinel_v2.db:/app/sentinel_v2.db
+      - ./backend/cloud_storage_mock:/app/cloud_storage_mock
+
+  frontend:
+    build: 
+      context: ./frontend
+    ports:
+      - "4173:4173"
+    environment:
+      - VITE_API_URL=http://localhost:8000/api
+    depends_on:
+      - backend

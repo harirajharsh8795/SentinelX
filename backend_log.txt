@@ -1,0 +1,16 @@
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "E:\Desktop\CANARA SENTINEL AI\backend\.venv\Scripts\uvicorn.exe\__main__.py", line 4, in <module>
+  File "E:\Desktop\CANARA SENTINEL AI\backend\.venv\Lib\site-packages\uvicorn\__init__.py", line 1, in <module>
+    from uvicorn.config import Config
+  File "E:\Desktop\CANARA SENTINEL AI\backend\.venv\Lib\site-packages\uvicorn\config.py", line 3, in <module>
+    import asyncio
+  File "C:\Users\HP\AppData\Roaming\uv\python\cpython-3.11-windows-x86_64-none\Lib\asyncio\__init__.py", line 8, in <module>
+    from .base_events import *
+  File "C:\Users\HP\AppData\Roaming\uv\python\cpython-3.11-windows-x86_64-none\Lib\asyncio\base_events.py", line 24, in <module>
+    import socket
+  File "C:\Users\HP\AppData\Roaming\uv\python\cpython-3.11-windows-x86_64-none\Lib\socket.py", line 51, in <module>
+    import _socket
+KeyboardInterrupt
+^C

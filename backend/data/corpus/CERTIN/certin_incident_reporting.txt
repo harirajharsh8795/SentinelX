@@ -1,0 +1,19 @@
+CERT-IN DIRECTIONS UNDER SECTION 70B, IT ACT 2000 — CYBERSECURITY INCIDENT REPORTING
+
+Direction 1 — Mandatory Reporting Entities
+All service providers, intermediaries, data centres, and government bodies must report cyber incidents to CERT-In within 6 hours of detection.
+
+Direction 2 — Log Retention
+Entities shall maintain logs of all ICT systems for 180 days rolling within Indian jurisdiction. Logs must include timestamps, source IP, destination IP, and user identity.
+
+Direction 3 — Reportable Incidents
+- Data breach affecting 1000+ records
+- Ransomware attack on critical infrastructure
+- DDoS causing 30+ minutes downtime
+- Compromise of privileged accounts
+
+Direction 4 — Point of Contact
+Each entity must designate a CISO-level contact and register with CERT-In portal within 30 days.
+
+Direction 5 — Non-Compliance
+Failure to report within prescribed timeline may result in direction to cease operations under Section 70B.

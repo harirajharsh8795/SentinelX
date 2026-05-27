@@ -1,0 +1,5 @@
+
+> canara-sentinel-ai-frontend@1.0.0 dev
+> vite
+
+Terminate batch job (Y/N)? Terminate batch job (Y/N)? 

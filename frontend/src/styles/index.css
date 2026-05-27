@@ -1,0 +1,106 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html, body {
+    margin: 0;
+    @apply bg-background text-textMain;
+    min-height: 100vh;
+    overflow-x: hidden;
+    position: relative;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection {
+    @apply bg-primary/30 text-white;
+  }
+}
+
+@layer components {
+  /* High-end Minimalist Card */
+  .glass-card {
+    @apply bg-surface/50 border border-white/5 backdrop-blur-xl rounded-2xl shadow-xl transition-all duration-300 relative overflow-hidden;
+  }
+
+  .glass-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(to bottom right, rgba(255,255,255,0.1), rgba(255,255,255,0.01));
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+
+  .glass-card:hover {
+    @apply border-white/10;
+    transform: translateY(-2px);
+    box-shadow: 0 10px 40px -10px rgba(59, 130, 246, 0.15);
+  }
+
+  /* Minimalist Input */
+  .input-futuristic {
+    @apply bg-surfaceAlt/50 border border-white/10 rounded-xl text-white placeholder:text-textSub transition-all duration-200 outline-none;
+  }
+
+  .input-futuristic:focus {
+    @apply border-primary/50 shadow-[0_0_15px_rgba(59,130,246,0.15)];
+  }
+}
+
+.page-wrapper {
+  width: min(1600px, 100%);
+  margin: 0 auto;
+}
+
+/* Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-white/10;
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-white/20;
+}
+
+/* prefers-reduced-motion CSS media query for Jetson or system preferences */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-delay: -1ms !important;
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    background-attachment: initial !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0s !important;
+    transition-delay: 0s !important;
+  }
+}
+
+/* Jetson Mode specific style overrides */
+.jetson-mode * {
+  animation: none !important;
+  transition-duration: 0s !important;
+  transition-delay: 0s !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.jetson-mode .glass-card {
+  background-color: #0b1120 !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.jetson-mode .glass-card::before {
+  display: none !important;
+}
