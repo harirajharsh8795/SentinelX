@@ -1,8 +1,9 @@
 import { motion } from "framer-motion";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import useFetch from "../hooks/useFetch.js";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { useStore } from "../store/useStore.js";
+import useWebsocket from "../hooks/useWebsocket.js";
 
 export default function Dashboard() {
   const selectedDocId = useStore((state) => state.selectedDocId);
@@ -11,12 +12,41 @@ export default function Dashboard() {
   
   const loading = dashboardLoading || tasksLoading;
   
-  // Realtime activity simulation
+  // Realtime activity simulation pulse
   const [pulse, setPulse] = useState(false);
   useEffect(() => {
     const interval = setInterval(() => setPulse(p => !p), 2000);
     return () => clearInterval(interval);
   }, []);
+
+  const token = localStorage.getItem("token");
+  const [events, setEvents] = useState([]);
+
+  // Fetch initial telemetry events from backend
+  const { data: telemetryResponse } = useFetch("/telemetry", { events: [] });
+
+  useEffect(() => {
+    if (telemetryResponse && telemetryResponse.events) {
+      setEvents(telemetryResponse.events);
+    }
+  }, [telemetryResponse]);
+
+  // Real-time telemetry WebSocket message receiver
+  const handleTelemetryMessage = useCallback((payload) => {
+    if (payload && payload.type === "telemetry") {
+      setEvents((prev) => {
+        // Prevent duplicate events
+        const isDuplicate = prev.some(
+          (evt) => evt.timestamp === payload.timestamp && evt.description === payload.description
+        );
+        if (isDuplicate) return prev;
+        return [payload, ...prev].slice(0, 50);
+      });
+    }
+  }, []);
+
+  // Connect to the telemetry WebSocket endpoint
+  useWebsocket(handleTelemetryMessage, { path: "/api/ws/telemetry", token });
 
   const stats = [
     { title: "Compliance Score", value: dashboard?.compliance_score !== undefined ? `${dashboard.compliance_score}%` : "100%", change: "+2.4%", icon: "verified_user", color: "text-success", bg: "bg-success/10", border: "border-success/20" },
@@ -131,11 +161,23 @@ export default function Dashboard() {
           </div>
           
           <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-4">
-             <ActivityItem type="success" title="Graph Synced" desc="Node embeddings updated." time="Just now" icon="hub" />
-             <ActivityItem type="warning" title="Risk Identified" desc="Clause 4b conflict detected." time="2m ago" icon="warning" />
-             <ActivityItem type="info" title="Chunking Complete" desc="240 passages generated." time="10m ago" icon="pageview" />
-             <ActivityItem type="primary" title="Agent Scheduled" desc="Audit pipeline dispatched." time="1h ago" icon="smart_toy" />
-             <ActivityItem type="info" title="User Login" desc="Admin authenticated." time="2h ago" icon="login" />
+             {events && events.length > 0 ? (
+               events.map((evt, idx) => (
+                 <ActivityItem 
+                   key={`${evt.timestamp}-${idx}`}
+                   type={evt.event_type || "info"}
+                   title={evt.title || evt.badge || "System Event"}
+                   desc={evt.description}
+                   time={evt.relative_time || "Just now"}
+                   icon={evt.icon || "info"}
+                   timestamp={evt.timestamp}
+                 />
+               ))
+             ) : (
+               <div className="text-center text-textSub text-xs py-12">
+                 No system activity recorded yet.
+               </div>
+             )}
           </div>
         </motion.div>
       </div>
@@ -143,7 +185,7 @@ export default function Dashboard() {
   );
 }
 
-function ActivityItem({ type, title, desc, time, icon }) {
+function ActivityItem({ type, title, desc, time, icon, timestamp }) {
   const colors = {
     primary: "text-primary bg-primary/10 border-primary/20",
     success: "text-success bg-success/10 border-success/20",
@@ -152,16 +194,41 @@ function ActivityItem({ type, title, desc, time, icon }) {
     info: "text-accent bg-accent/10 border-accent/20"
   };
 
+  const typeLabels = {
+    primary: "AGENT",
+    success: "SUCCESS",
+    warning: "WARNING",
+    alert: "ALERT",
+    info: "INFO"
+  };
+
+  const cleanTime = timestamp ? timestamp.replace(" UTC", "") : "";
+
   return (
-    <div className="flex items-start gap-4 p-3 bg-surfaceAlt/30 border border-white/5 rounded-xl hover:bg-white/5 transition-colors">
-      <div className={`p-2 rounded-lg border ${colors[type]}`}>
-        <span className="material-symbols-outlined text-[16px]">{icon}</span>
+    <div className="flex flex-col gap-2 p-3.5 bg-surfaceAlt/30 border border-white/5 rounded-xl hover:bg-white/5 transition-all duration-200">
+      <div className="flex items-start gap-3">
+        <div className={`p-2 rounded-lg border flex-shrink-0 ${colors[type] || colors.info}`}>
+          <span className="material-symbols-outlined text-[16px] flex items-center justify-center">{icon}</span>
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap mb-1">
+            <h4 className="text-sm font-bold text-white leading-tight">{title}</h4>
+            <span className={`text-[9px] font-mono font-extrabold px-1.5 py-0.5 rounded border leading-none tracking-wider ${colors[type] || colors.info}`}>
+              {typeLabels[type] || "EVENT"}
+            </span>
+          </div>
+          <p className="text-xs text-textSub leading-relaxed whitespace-pre-wrap break-words">{desc}</p>
+        </div>
+        <div className="flex flex-col items-end gap-1 flex-shrink-0">
+          <span className="text-[10px] font-mono text-textSub font-bold">{time}</span>
+        </div>
       </div>
-      <div className="flex-1 min-w-0">
-        <h4 className="text-sm font-bold text-white mb-0.5">{title}</h4>
-        <p className="text-xs text-textSub truncate">{desc}</p>
-      </div>
-      <span className="text-[10px] font-mono text-textSub whitespace-nowrap">{time}</span>
+      {timestamp && (
+        <div className="text-[9px] font-mono text-textSub/55 border-t border-white/5 pt-1.5 flex justify-between items-center">
+          <span>EVENT TIMELINE</span>
+          <span>{cleanTime}</span>
+        </div>
+      )}
     </div>
   );
 }

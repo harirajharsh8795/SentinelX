@@ -4,6 +4,8 @@ from rag.hybrid_search import hybrid_search_and_rerank
 from services.gemini_service import generate_text
 from database.database import get_db_context
 from database.models import ChatMessage, Document
+from utils.input_sanitizer import sanitize_document_text, sanitize_user_query  # Security
+from database.database import SessionLocal
 
 def get_chat_history(doc_id: str) -> str:
     from database.database import get_db_context
@@ -245,6 +247,9 @@ def chat_with_document(doc_id: str, message: str) -> Dict[str, Any]:
     
     # 3. Semantic Query Rewriting (Step 6)
     standalone_query = rewrite_query(message, chat_history)
+
+    # Security: Sanitize user message before it enters any prompt
+    safe_message = sanitize_user_query(message)
     
     # 4. Retrieve chunks with MMR enabled + strict regulator isolation (Phase 3)
     retrieved_chunks = hybrid_search_and_rerank(query=standalone_query, final_k=3, doc_id=doc_id, regulator=regulator)
@@ -256,6 +261,8 @@ def chat_with_document(doc_id: str, message: str) -> Dict[str, Any]:
     for idx, chunk in enumerate(retrieved_chunks):
         section = chunk["metadata"].get("section_title", "General")
         text = chunk["text"]
+        # Security: Sanitize each retrieved chunk before prompt injection
+        text = sanitize_document_text(text, max_chars=8000, source_label=f"chat_chunk_{idx}")
         context_text += f"---\n[Source {idx+1}: {section}]\n{text}\n"
         
         sources.append({
@@ -280,7 +287,7 @@ def chat_with_document(doc_id: str, message: str) -> Dict[str, Any]:
 
     # 6. Question Classification & Dynamic Prompts (Steps 7, 8, 11)
     category = classify_question(standalone_query)
-    prompt = build_dynamic_prompt(category, chat_history, context_text, standalone_query, message, regulator)
+    prompt = build_dynamic_prompt(category, chat_history, context_text, standalone_query, safe_message, regulator)
 
     # 7. Generate Answer
     from services.observability_service import TraceContext, estimate_grounding_quality

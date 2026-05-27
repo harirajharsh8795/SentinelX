@@ -15,6 +15,7 @@ from ai_agents.agent_tools import (
     AlertGeneratorTool
 )
 from utils.logger import get_logger
+from services.event_broadcaster import event_bus, EventLogger  # Real-time telemetry
 
 logger = get_logger(__name__)
 
@@ -76,6 +77,7 @@ def persist_state_to_db(document_id: str, step_name: str, state: Dict[str, Any])
 def document_analyzer(state: AgentGraphState) -> Dict[str, Any]:
     """Node 1: Analyzes context and extracts action points (MAPs)."""
     logger.info("[LangGraph Node: Document Analyzer] Extracting regulatory directives...")
+    EventLogger.log_agent_node_executed(state.get("doc_id"), "Document Analyzer", "Extracting regulatory directives via Qwen2.5")
     try:
         raw_maps = map_generator_tool.run(state["context"])
         for m in raw_maps:
@@ -94,6 +96,7 @@ def document_analyzer(state: AgentGraphState) -> Dict[str, Any]:
 def compliance_checker(state: AgentGraphState) -> Dict[str, Any]:
     """Node 2: Runs risk assessment, validation checks, and measures grounding."""
     logger.info("[LangGraph Node: Compliance Checker] Reviewing rules and calculating risk exposure...")
+    EventLogger.log_agent_node_executed(state.get("doc_id"), "Compliance Checker", "Calculating risk exposure and grounding score")
     from ai_agents.risk_agent import run_risk_agent
     
     risks = []
@@ -134,12 +137,16 @@ def compliance_checker(state: AgentGraphState) -> Dict[str, Any]:
         "hallucination_detected": hallucination_detected,
         "agent_reasoning": reasoning
     }
+    EventLogger.log_compliance_result(state.get("doc_id"), compliance_score, risk_score, int(grounding_score*100))
+    if hallucination_detected:
+        event_bus.emit("risk_detected", f"Hallucination flag triggered (grounding {int(grounding_score*100)}% < 70%)", doc_id=state.get("doc_id"))
     persist_state_to_db(state["doc_id"], "compliance_checker", {**state, **updates})
     return updates
 
 def cross_regulation(state: AgentGraphState) -> Dict[str, Any]:
     """Node 3: Compares guidelines across different circulars."""
     logger.info("[LangGraph Node: Cross Regulation] Checking conflicts against active corpus...")
+    EventLogger.log_agent_node_executed(state.get("doc_id"), "Cross-Regulation", "Comparing guidelines across regulatory corpus")
     conflicts = []
     
     with get_db_context() as db:
@@ -169,6 +176,7 @@ def cross_regulation(state: AgentGraphState) -> Dict[str, Any]:
 def self_corrector(state: AgentGraphState) -> Dict[str, Any]:
     """Node 4: Evaluates grounding quality and refines analysis outputs."""
     logger.info("[LangGraph Node: Self Corrector] Inspecting hallucination triggers...")
+    EventLogger.log_agent_node_executed(state.get("doc_id"), "Self-Corrector", "Evaluating grounding quality for hallucination triggers")
     
     hallucinated = state.get("hallucination_detected", False)
     iterations = state.get("correction_iterations", 0)
@@ -199,6 +207,7 @@ def self_corrector(state: AgentGraphState) -> Dict[str, Any]:
 def task_generator(state: AgentGraphState) -> Dict[str, Any]:
     """Node 5: Translates compliance gaps to tasks and initiates high-risk alerts."""
     logger.info("[LangGraph Node: Task Generator] Creating compliance workflows...")
+    EventLogger.log_agent_node_executed(state.get("doc_id"), "Task Generator", "Creating MAP tasks and compliance alerts")
     
     maps = state.get("maps", [])
     alerts = state.get("alerts", [])
@@ -223,6 +232,7 @@ def task_generator(state: AgentGraphState) -> Dict[str, Any]:
         "alerts": alerts,
         "agent_reasoning": reasoning
     }
+    EventLogger.log_task_generated(state.get("doc_id"), len(maps), len(alerts))
     persist_state_to_db(state["doc_id"], "task_generator", {**state, **updates})
     return updates
 

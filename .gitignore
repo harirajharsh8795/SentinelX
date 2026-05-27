@@ -1,0 +1,49 @@
+# ==============================================================================
+# SentinelX .gitignore
+# ==============================================================================
+
+# --- Secrets (CRITICAL: Never commit real .env) ---
+.env
+backend/.env
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+*.egg
+.venv/
+venv/
+.pytest_cache/
+
+# --- Node / Frontend ---
+node_modules/
+frontend/node_modules/
+frontend/dist/
+
+# --- Database ---
+*.db
+*.sqlite3
+
+# --- Uploads & Vector Store ---
+backend/uploads/
+backend/vector_store/
+backend/vector_db/
+
+# --- IDE ---
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# --- OS ---
+.DS_Store
+Thumbs.db
+
+# --- Logs ---
+*.log
+backend_log.txt
+backend_err.txt
+frontend_log.txt

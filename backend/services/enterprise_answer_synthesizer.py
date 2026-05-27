@@ -8,6 +8,7 @@ import hashlib
 
 from services.gemini_service import generate_text
 from services.ai_json import parse_json_with_retry, get_str, to_list
+from utils.input_sanitizer import sanitize_document_text  # Security: Prompt injection defense
 
 
 def _chunk_fingerprint(text: str) -> str:
@@ -86,7 +87,7 @@ Return ONLY valid JSON:
 {risks_summary}
 
 --- DOCUMENT CONTEXT PREVIEW ---
-{context_preview[:2000]}
+{sanitize_document_text(context_preview[:2000], max_chars=2000, source_label="synthesis_context")}
 """
     data = parse_json_with_retry(prompt, schema_hint="executive_summary, strategic_insights, business_impact, risk_explanations, priority_actions")
 

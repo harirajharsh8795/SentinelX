@@ -10,6 +10,8 @@ from io import BytesIO
 from utils.config import settings
 from utils.security import ensure_upload_dir, sanitize_filename
 from utils.storage import storage_client
+from utils.input_sanitizer import sanitize_document_text  # Security: Prompt injection defense
+from services.event_broadcaster import event_bus, EventLogger  # Real-time telemetry
 from rag.chunker import chunk_text
 from rag.hybrid_search import hybrid_search_and_rerank
 from rag.retriever import add_chunks
@@ -157,6 +159,7 @@ def ingest_file_from_path(
 
     text = _extract_text_from_file(save_path, safe_name)
     text = clean_extracted_text(text)
+    text = sanitize_document_text(text, source_label=f"ingest_path:{safe_name}")  # Security: strip injections
     text = mask_pii(text)
 
     if not text.strip():
@@ -168,6 +171,7 @@ def ingest_file_from_path(
     chunks = chunk_text(text)
     if not chunks:
         raise ValueError("No indexable text extracted from document. PDF may be scanned/image-only.")
+    EventLogger.log_embedding_started(doc_id, safe_name, len(chunks))
     add_chunks(
         doc_id,
         chunks,
@@ -195,6 +199,9 @@ def ingest_file_from_path(
         )
         db.add(doc)
         db.commit()
+
+    EventLogger.log_document_uploaded(doc_id, safe_name, f"{len(chunks)} chunks, regulator: {regulator}")
+    EventLogger.log_embedding_completed(doc_id, safe_name)
 
     return {
         "document_id": doc_id,
@@ -226,6 +233,7 @@ async def ingest_document(file) -> Dict[str, Any]:
 
     text = _extract_text_from_file(save_path, safe_name)
     text = clean_extracted_text(text)
+    text = sanitize_document_text(text, source_label=f"upload:{safe_name}")  # Security: strip injections
     text = mask_pii(text)
 
     if not text.strip():
@@ -291,6 +299,7 @@ async def ingest_bytes(
 
     text = _extract_text_from_file(save_path, safe_name)
     text = clean_extracted_text(text)
+    text = sanitize_document_text(text, source_label=f"scrape:{safe_name}")  # Security: strip injections
     text = mask_pii(text)
 
     if not text.strip():
@@ -401,6 +410,8 @@ async def analyze_document(doc_id: str) -> Dict[str, Any]:
         }
 
     context = merge_retrieved_context(context_chunks)
+    # Security: Sanitize merged context before it enters LLM agent graph
+    context = sanitize_document_text(context, source_label=f"analysis_context:{doc_id}")
     try:
         agent_output = await run_autonomous_compliance_graph(doc_id, context)
     except Exception as exc:

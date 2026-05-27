@@ -185,3 +185,37 @@ async def broadcast_alert(title: str, severity: str, document_id: str = None):
             logger.info(f"Throttling duplicate global alert: {title}")
             return
         await manager.broadcast_global(msg)
+
+
+# ==============================================================================
+# TELEMETRY WebSocket — Dashboard connects here for real-time event stream
+# ==============================================================================
+@router.websocket("/ws/telemetry")
+async def websocket_telemetry(websocket: WebSocket):
+    """
+    Dashboard AI Telemetry panel connects to this endpoint.
+    Receives all real-time system events via the GLOBAL broadcast room.
+    """
+    token = websocket.query_params.get("token")
+    user = verify_token(token) if token else None
+    if not user:
+        await websocket.accept()
+        await websocket.close(code=4003)
+        return
+
+    client_id = f"telemetry:{user['username']}"
+    await manager.connect("GLOBAL", client_id, websocket)
+    logger.info(f"Telemetry WS connected: {client_id}")
+
+    # Emit login event
+    from services.event_broadcaster import event_bus
+    event_bus.emit("user_login", f"{user['username']} ({user['role']}) connected to dashboard")
+
+    try:
+        while True:
+            # Keep connection alive; events are pushed by EventBroadcaster
+            await asyncio.sleep(30)
+    except WebSocketDisconnect:
+        manager.disconnect("GLOBAL", client_id)
+        logger.info(f"Telemetry WS disconnected: {client_id}")
+

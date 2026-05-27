@@ -297,3 +297,12 @@ async def transcribe_voice_api(file: UploadFile = File(...), current_user = Depe
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Transcription failed: {str(e)}")
 
+
+# ==============================================================================
+# TELEMETRY — Real-time event feed (REST fallback for initial page load)
+# ==============================================================================
+@router.get("/telemetry")
+async def get_telemetry(limit: int = 20, current_user = Depends(get_current_active_user)):
+    """Returns recent real system events for Dashboard AI Telemetry panel."""
+    from services.event_broadcaster import event_bus
+    return {"events": event_bus.get_recent_events(limit=limit)}
