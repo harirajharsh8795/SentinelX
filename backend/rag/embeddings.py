@@ -98,10 +98,14 @@ def simple_embedding(text: str) -> List[float]:
         current_timeout = 15.0
         _first_request_made = True
 
+    processed_text = text.strip()
+    if "nomic" in OLLAMA_MODEL and not processed_text.startswith("search_query:") and not processed_text.startswith("search_document:"):
+        processed_text = f"search_query: {processed_text}"
+
     try:
         payload = {
             "model": OLLAMA_MODEL,
-            "prompt": text.strip()
+            "prompt": processed_text
         }
         
         start_time = time.perf_counter()
@@ -134,12 +138,17 @@ def batch_embeddings(texts: List[str], batch_size: int = 32) -> List[List[float]
 
     results = []
     # Strip texts and replace empty strings with dummy text to avoid Ollama errors
-    cleaned_texts = [t.strip() if t.strip() else "empty" for t in texts]
+    processed_texts = []
+    for t in texts:
+        pt = t.strip() if t.strip() else "empty"
+        if "nomic" in OLLAMA_MODEL and not pt.startswith("search_query:") and not pt.startswith("search_document:"):
+            pt = f"search_document: {pt}"
+        processed_texts.append(pt)
 
-    logger.info(f"Generating embeddings for {len(cleaned_texts)} chunks in batches of {batch_size}...")
+    logger.info(f"Generating embeddings for {len(processed_texts)} chunks in batches of {batch_size}...")
 
-    for i in range(0, len(cleaned_texts), batch_size):
-        batch = cleaned_texts[i:i + batch_size]
+    for i in range(0, len(processed_texts), batch_size):
+        batch = processed_texts[i:i + batch_size]
         payload = {
             "model": OLLAMA_MODEL,
             "input": batch

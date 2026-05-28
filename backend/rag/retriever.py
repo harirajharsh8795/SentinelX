@@ -5,7 +5,7 @@ from rag.embeddings import simple_embedding, batch_embeddings
 
 def get_collection():
     client = get_client()
-    return client.get_or_create_collection(name="canara_sentinel_v3")
+    return client.get_or_create_collection(name="canara_sentinel_v4", metadata={"hnsw:space": "cosine"})
 
 
 def add_chunks(
@@ -82,7 +82,7 @@ def _build_where(
 
 def search_similar(
     query: str,
-    top_k: int = 3,
+    top_k: int = 6,
     doc_id: Optional[Union[str, List[str]]] = None,
     regulator: Optional[str] = None,
 ) -> List[Dict[str, Any]]:

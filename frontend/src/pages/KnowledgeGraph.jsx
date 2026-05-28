@@ -42,7 +42,7 @@ export default function KnowledgeGraph() {
         return;
       }
       try {
-        const res = await api.get(`/knowledge-graph/${docId}`);
+        const res = await api.get(`/knowledge-graph/${docId}`, { timeout: 120000 });
         const nodes = res.data.nodes.map((n) => ({
           ...n,
           val: 3 + (n.risk_score || 0) * 8,
@@ -84,7 +84,7 @@ export default function KnowledgeGraph() {
   const handleNodeClick = useCallback(async (node) => {
     setSelectedNode(node);
     try {
-      const res = await api.get(`/knowledge-graph/${docId}/node/${node.id}`);
+      const res = await api.get(`/knowledge-graph/${docId}/node/${node.id}`, { timeout: 120000 });
       setNodeDetail(res.data);
     } catch {
       setNodeDetail({ node, connections: [] });

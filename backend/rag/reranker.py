@@ -46,7 +46,12 @@ def rerank_chunks(query: str, chunks: List[Dict[str, Any]], top_k: int = 3, lamb
         else:
             jaccard_rel = 0
             
-        vector_score = 1.0 / (1.0 + chunk.get("score", 0.0))
+        dist = chunk.get("score", 0.0)
+        # Handle both Cosine (close to 0 is similar) and L2 distances dynamically
+        if dist < 1.0:
+            vector_score = 1.0 - dist
+        else:
+            vector_score = 1.0 / (1.0 + dist)
 
         # Phase 8: Regulatory action word boost
         reg_boost = 0.0
@@ -88,4 +93,10 @@ def rerank_chunks(query: str, chunks: List[Dict[str, Any]], top_k: int = 3, lamb
         selected.append(best_chunk)
         candidates.pop(best_idx)
         
-    return selected
+    # Apply score threshold 0.3 filter, keeping at least 1 chunk to prevent empty context
+    filtered_selected = []
+    for i, c in enumerate(selected):
+        if c.get("base_relevance", 0.0) >= 0.3 or i == 0:
+            filtered_selected.append(c)
+            
+    return filtered_selected

@@ -382,7 +382,7 @@ async def analyze_document(doc_id: str) -> Dict[str, Any]:
     sources = []
     
     for query in queries:
-        retrieved = hybrid_search_and_rerank(query, final_k=3, doc_id=doc_id, regulator=regulator)
+        retrieved = hybrid_search_and_rerank(query, final_k=6, doc_id=doc_id, regulator=regulator)
         for chunk in retrieved:
             # Reconstruct the string to inject metadata for citations
             section = chunk["metadata"].get("section_title", "General")
@@ -442,6 +442,10 @@ async def analyze_document(doc_id: str) -> Dict[str, Any]:
         for risk in agent_output.get("risks", []):
             audit_notes.append(f"Risk flagged: {risk.get('risk')} - severity: {risk.get('severity')}")
         await asyncio.to_thread(add_audit_events, audit_notes, document_id=doc_id)
+
+        # Pre-generate knowledge graph in background to cache it
+        from services.graph_service import generate_knowledge_graph
+        await asyncio.to_thread(generate_knowledge_graph, doc_id)
 
         res_dict = {
             **agent_output,

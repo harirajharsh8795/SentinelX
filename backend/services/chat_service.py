@@ -252,7 +252,7 @@ def chat_with_document(doc_id: str, message: str) -> Dict[str, Any]:
     safe_message = sanitize_user_query(message)
     
     # 4. Retrieve chunks with MMR enabled + strict regulator isolation (Phase 3)
-    retrieved_chunks = hybrid_search_and_rerank(query=standalone_query, final_k=3, doc_id=doc_id, regulator=regulator)
+    retrieved_chunks = hybrid_search_and_rerank(query=standalone_query, final_k=6, doc_id=doc_id, regulator=regulator)
     
     context_text = ""
     sources = []

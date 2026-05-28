@@ -28,7 +28,7 @@ SEVERITY_PROPAGATION = {"High": 1.0, "Medium": 0.6, "Low": 0.3}
 
 def _get_document_chunks(document_id: str) -> List[Dict[str, Any]]:
     client = get_client()
-    collection = client.get_or_create_collection(name="canara_sentinel_v3")
+    collection = client.get_or_create_collection(name="canara_sentinel_v4")
     results = collection.get(
         where={"doc_id": document_id},
         include=["documents", "metadatas"],
@@ -136,17 +136,26 @@ def _inject_task_actions(nodes: List[dict], edges: List[dict], document_id: str)
     return nodes, edges
 
 
+_graph_memory_cache = {}
+
+
 def generate_knowledge_graph(document_id: str) -> dict:
     from database.database import get_db_context
+    
+    # Quick in-memory cache check
+    if document_id in _graph_memory_cache:
+        return _graph_memory_cache[document_id]
     
     with get_db_context() as db:
         doc = db.query(Document).filter(Document.id == document_id).first()
         if doc and doc.knowledge_graph:
             try:
                 if isinstance(doc.knowledge_graph, str):
-                    return json.loads(doc.knowledge_graph)
+                    res = json.loads(doc.knowledge_graph)
                 elif isinstance(doc.knowledge_graph, dict):
-                    return doc.knowledge_graph
+                    res = doc.knowledge_graph
+                _graph_memory_cache[document_id] = res
+                return res
             except Exception as e:
                 logger.warning(f"Error loading cached knowledge_graph JSON: {e}")
 
@@ -267,6 +276,7 @@ DOCUMENT:
             doc.knowledge_graph = result_dict
             db.commit()
 
+    _graph_memory_cache[document_id] = result_dict
     return result_dict
 
 

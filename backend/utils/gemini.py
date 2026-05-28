@@ -418,15 +418,16 @@ def generate_text(prompt: str, timeout: int = 60) -> str:
         "stream": False
     }
 
-    max_retries = 3
-    retry_delay = 2
+    max_retries = 2
+    retry_delay = 1
+    effective_timeout = min(timeout, 20)
     last_error = None
 
     for attempt in range(1, max_retries + 1):
         try:
             with TraceContext("ollama.generate", {"prompt_len": len(prompt), "model": settings.ollama_model, "attempt": attempt}) as ctx:
                 logger.info(f"Invoking local Ollama model '{settings.ollama_model}' (Attempt {attempt}/{max_retries})...")
-                response = requests.post(ollama_url, json=payload, timeout=timeout)
+                response = requests.post(ollama_url, json=payload, timeout=effective_timeout)
                 
                 if response.status_code == 200:
                     data = response.json()
@@ -442,5 +443,49 @@ def generate_text(prompt: str, timeout: int = 60) -> str:
                 time.sleep(retry_delay)
 
     logger.error(f"All {max_retries} attempts to contact local Ollama failed. Last error: {last_error}. Falling back to mock generator.")
+    return get_mock_response(prompt)
+
+
+async def generate_text_async(prompt: str, timeout: int = 20) -> str:
+    import sys
+    import os
+    if "pytest" in sys.modules or os.getenv("TESTING") == "true":
+        return get_mock_response(prompt)
+
+    import httpx
+    import asyncio
+    from services.observability_service import TraceContext
+
+    ollama_url = f"{settings.ollama_url}/api/chat"
+    payload = {
+        "model": settings.ollama_model,
+        "messages": [
+            {"role": "user", "content": prompt}
+        ],
+        "stream": False
+    }
+
+    max_retries = 2
+    retry_delay = 1
+    last_error = None
+
+    for attempt in range(1, max_retries + 1):
+        try:
+            logger.info(f"Invoking local Ollama model '{settings.ollama_model}' asynchronously (Attempt {attempt}/{max_retries})...")
+            async with httpx.AsyncClient() as client:
+                response = await client.post(ollama_url, json=payload, timeout=timeout)
+                if response.status_code == 200:
+                    data = response.json()
+                    content = data.get("message", {}).get("content", "").strip()
+                    return content
+                else:
+                    raise ValueError(f"Ollama returned non-200 status code: {response.status_code}")
+        except Exception as e:
+            last_error = str(e)
+            logger.warning(f"Ollama async generation failed on attempt {attempt}: {e}")
+            if attempt < max_retries:
+                await asyncio.sleep(retry_delay)
+
+    logger.error(f"All {max_retries} attempts to contact local Ollama failed asynchronously. Falling back to mock.")
     return get_mock_response(prompt)
 

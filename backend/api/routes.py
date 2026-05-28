@@ -62,7 +62,16 @@ def get_documents_api(current_user = Depends(get_current_active_user)):
     from models.schemas import DocumentItem
     
     with get_db_context() as db:
-        docs = db.query(Document).order_by(Document.upload_date.desc()).all()
+        # Optimization: Select only required metadata columns to bypass loading massive analysis/graph JSON fields
+        docs = db.query(
+            Document.id,
+            Document.filename,
+            Document.upload_date,
+            Document.status,
+            Document.regulator,
+            Document.framework,
+            Document.pages
+        ).order_by(Document.upload_date.desc()).all()
         result = [
             DocumentItem(
                 id=d.id,
@@ -139,14 +148,17 @@ async def chat_api(request: ChatRequest, current_user = Depends(get_current_acti
 
 @router.get("/knowledge-graph/{document_id}", response_model=KnowledgeGraphResponse)
 async def knowledge_graph_api(document_id: str, current_user = Depends(get_current_active_user)):
+    import asyncio
     if not document_id.strip():
         raise HTTPException(status_code=400, detail="document_id is required")
-    result = generate_knowledge_graph(document_id)
+    result = await asyncio.to_thread(generate_knowledge_graph, document_id)
     return result
+
 
 @router.get("/knowledge-graph/{document_id}/node/{node_id}")
 async def knowledge_graph_node_api(document_id: str, node_id: str, current_user = Depends(get_current_active_user)):
-    detail = get_node_detail(document_id, node_id)
+    import asyncio
+    detail = await asyncio.to_thread(get_node_detail, document_id, node_id)
     if not detail:
         raise HTTPException(status_code=404, detail="Node not found")
     return detail

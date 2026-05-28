@@ -27,17 +27,25 @@ DOMAIN_ACRONYMS = {
 }
 
 def expand_domain_terms(query: str) -> str:
-    """Expand abbreviations in the query to improve recall."""
-    q_lower = query.lower()
+    """Expand abbreviations and add regulatory context for short queries to improve recall."""
+    q_lower = query.lower().strip()
     expansions = []
     for abbrev, expansion in DOMAIN_ACRONYMS.items():
         # Check boundary to avoid sub-word matching (e.g. 'cdd' in 'cdd-checklist')
         if abbrev in q_lower:
             expansions.append(expansion)
+            
+    result = query
     if expansions:
         # Append up to 2 domain expansions to prevent query bloat
-        return query + " " + " ".join(expansions[:2])
-    return query
+        result = query + " " + " ".join(expansions[:2])
+        
+    # General query expansion for short user search phrases (<= 3 words)
+    words = result.split()
+    if len(words) <= 3:
+        result = result + " regulatory compliance requirements audit guidelines mandates and directives"
+        
+    return result
 
 def generate_multi_queries(query: str, chat_history: str = "") -> List[str]:
     """Generates 3 semantically distinct query formulations using the local/global LLM."""

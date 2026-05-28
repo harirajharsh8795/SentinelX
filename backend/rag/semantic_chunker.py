@@ -97,7 +97,7 @@ def _chunk_large_block(block: Dict[str, str], chunk_size: int, overlap: int) -> 
     return chunks
 
 
-def chunk_text(text: str, chunk_size: int = 800, overlap: int = 120) -> List[Dict[str, Any]]:
+def chunk_text(text: str, chunk_size: int = 2000, overlap: int = 200) -> List[Dict[str, Any]]:
     if not text or not text.strip():
         return []
 
