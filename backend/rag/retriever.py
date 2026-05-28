@@ -1,6 +1,6 @@
 from typing import List, Optional, Dict, Any, Union
 from vector_db.chroma_client import get_client
-from rag.embeddings import simple_embedding
+from rag.embeddings import simple_embedding, batch_embeddings
 
 
 def get_collection():
@@ -24,7 +24,7 @@ def add_chunks(
     ids = [f"{doc_id}-{i}" for i in range(len(valid_chunks))]
 
     documents = [c["text"] for c in valid_chunks]
-    embeddings = [simple_embedding(doc) for doc in documents]
+    embeddings = batch_embeddings(documents)
 
     metadatas = []
     for i, c in enumerate(valid_chunks):

@@ -121,3 +121,45 @@ def simple_embedding(text: str) -> List[float]:
     except Exception as e:
         logger.error(f"Fatal error generating local embedding via Ollama: {e}")
         raise RuntimeError(f"Local embedding generation failed: {str(e)}") from e
+
+
+OLLAMA_BATCH_EMBED_URL = "http://localhost:11434/api/embed"
+
+def batch_embeddings(texts: List[str], batch_size: int = 32) -> List[List[float]]:
+    """
+    Generate vector embeddings in batches locally via Ollama.
+    """
+    if IS_TESTING:
+        return [_get_pseudo_embedding(t) for t in texts]
+
+    results = []
+    # Strip texts and replace empty strings with dummy text to avoid Ollama errors
+    cleaned_texts = [t.strip() if t.strip() else "empty" for t in texts]
+
+    logger.info(f"Generating embeddings for {len(cleaned_texts)} chunks in batches of {batch_size}...")
+
+    for i in range(0, len(cleaned_texts), batch_size):
+        batch = cleaned_texts[i:i + batch_size]
+        payload = {
+            "model": OLLAMA_MODEL,
+            "input": batch
+        }
+        try:
+            start_time = time.perf_counter()
+            response = requests.post(OLLAMA_BATCH_EMBED_URL, json=payload, timeout=60.0)
+            latency = time.perf_counter() - start_time
+            if response.status_code == 200:
+                data = response.json()
+                embeddings = data.get("embeddings")
+                if embeddings and len(embeddings) == len(batch):
+                    logger.info(f"Batch embedding generated successfully ({len(batch)} items). Latency: {latency:.4f}s.")
+                    results.extend(embeddings)
+                else:
+                    raise ValueError(f"Ollama returned incorrect number of embeddings: expected {len(batch)}, got {len(embeddings) if embeddings else 0}")
+            else:
+                raise ValueError(f"Ollama returned non-200 status code: {response.status_code} - {response.text}")
+        except Exception as e:
+            logger.error(f"Fatal error generating batch embeddings via Ollama: {e}")
+            raise RuntimeError(f"Local batch embedding generation failed: {str(e)}") from e
+
+    return results

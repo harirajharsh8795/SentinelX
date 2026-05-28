@@ -67,6 +67,8 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install --upgrade pip
 pip install -r backend/requirements.txt
+echo "[BACKEND] Applying ChromaDB post-installation patches..."
+python post_install.py
 deactivate
 
 # 5. FRONTEND COMPILATION & NGINX CONFIGURATION

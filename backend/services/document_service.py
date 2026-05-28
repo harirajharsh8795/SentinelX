@@ -231,7 +231,7 @@ async def ingest_document(file) -> Dict[str, Any]:
     from io import BytesIO
     storage_uri = storage_client.upload_fileobj(BytesIO(content), safe_name)
 
-    text = _extract_text_from_file(save_path, safe_name)
+    text = await asyncio.to_thread(_extract_text_from_file, save_path, safe_name)
     text = clean_extracted_text(text)
     text = sanitize_document_text(text, source_label=f"upload:{safe_name}")  # Security: strip injections
     text = mask_pii(text)
@@ -241,7 +241,8 @@ async def ingest_document(file) -> Dict[str, Any]:
 
     regulator = detect_regulator(text, safe_name)
     chunks = chunk_text(text)
-    add_chunks(
+    await asyncio.to_thread(
+        add_chunks,
         doc_id,
         chunks,
         regulator=regulator,
@@ -297,7 +298,7 @@ async def ingest_bytes(
     from io import BytesIO
     storage_uri = storage_client.upload_fileobj(BytesIO(content), safe_name)
 
-    text = _extract_text_from_file(save_path, safe_name)
+    text = await asyncio.to_thread(_extract_text_from_file, save_path, safe_name)
     text = clean_extracted_text(text)
     text = sanitize_document_text(text, source_label=f"scrape:{safe_name}")  # Security: strip injections
     text = mask_pii(text)
@@ -309,7 +310,8 @@ async def ingest_bytes(
         regulator = detect_regulator(text, safe_name)
 
     chunks = chunk_text(text)
-    add_chunks(
+    await asyncio.to_thread(
+        add_chunks,
         doc_id, chunks,
         regulator=regulator,
         framework=framework,

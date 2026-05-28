@@ -223,7 +223,13 @@ JETSON_MODE=true
 ```
 *(Setting `JETSON_MODE=true` disables heavy browser-side glassmorphism and spring transitions in the React UI, maintaining a constant 60 FPS in Chromium on the Jetson Orin Nano).*
 
-#### 4. Run Startup Services
+#### 4. Run Post-Installation Patches (Critical for ChromaDB on Jetson/Windows)
+ChromaDB contains internal SQLite and HNSW indexing bugs under custom edge configurations. Run the post-install patcher script inside your active virtual environment:
+```bash
+python post_install.py
+```
+
+#### 5. Run Startup Services
 You can run the startup scripts located in the root folder to boot components automatically:
 ```bash
 chmod +x ./start_sentinelx.sh ./health_check.sh
