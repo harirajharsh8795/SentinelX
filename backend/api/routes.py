@@ -143,7 +143,7 @@ async def chat_api(request: ChatRequest, current_user = Depends(get_current_acti
     if not request.message.strip():
         raise HTTPException(status_code=400, detail="message cannot be empty")
     
-    result = chat_with_document(request.document_id, request.message)
+    result = await chat_with_document(request.document_id, request.message)
     return result
 
 @router.get("/knowledge-graph/{document_id}", response_model=KnowledgeGraphResponse)

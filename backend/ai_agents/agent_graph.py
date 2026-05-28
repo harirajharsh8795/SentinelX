@@ -312,7 +312,25 @@ async def run_autonomous_compliance_graph(document_id: str, context: str) -> Dic
     }
 
     # Execute LangGraph asynchronously
-    final_state = await langgraph_app.ainvoke(initial_state)
+    try:
+        final_state = await langgraph_app.ainvoke(initial_state)
+    except Exception as e:
+        logger.error(f"LangGraph execution failed: {e}. Attempting to recover partial state...")
+        with get_db_context() as db:
+            latest_state_db = db.query(models.AgentGraphState).filter(
+                models.AgentGraphState.document_id == document_id
+            ).order_by(models.AgentGraphState.timestamp.desc()).first()
+            
+            if latest_state_db and latest_state_db.state_data:
+                logger.info(f"Recovered partial state from step: {latest_state_db.step_name}")
+                final_state = latest_state_db.state_data
+                if "agent_reasoning" not in final_state:
+                    final_state["agent_reasoning"] = []
+                final_state["agent_reasoning"].append(
+                    f"System recovered partial results from step '{latest_state_db.step_name}' after a model connection issue."
+                )
+            else:
+                raise e
 
     # Phase C: Trigger Knowledge Graph build sequentially
     logger.info("[Graph Orchestrator] Executing Phase C knowledge graph compilation...")

@@ -1,7 +1,7 @@
 import os
 from typing import Dict, List, Any
 from rag.hybrid_search import hybrid_search_and_rerank
-from services.gemini_service import generate_text
+from services.gemini_service import generate_text, generate_text_async
 from database.database import get_db_context
 from database.models import ChatMessage, Document
 from utils.input_sanitizer import sanitize_document_text, sanitize_user_query  # Security
@@ -24,7 +24,7 @@ def get_chat_history(doc_id: str) -> str:
         
     return "\n".join(formatted)
 
-def rewrite_query(original_query: str, chat_history: str) -> str:
+async def rewrite_query(original_query: str, chat_history: str) -> str:
     """
     Semantic Query Rewriting Engine (Phase 1):
     1. Resolves pronouns using conversation history.
@@ -55,7 +55,8 @@ RULES:
 
 Rewritten Query:"""
     try:
-        rewritten = generate_text(prompt).strip()
+        rewritten = await generate_text_async(prompt, timeout=45)
+        rewritten = rewritten.strip()
         # Fallback if Gemini refuses or is verbose
         if "\n" in rewritten or len(rewritten) > 250:
             return expanded
@@ -231,7 +232,7 @@ AI Answer:
 """
     return prompt
 
-def chat_with_document(doc_id: str, message: str) -> Dict[str, Any]:
+async def chat_with_document(doc_id: str, message: str) -> Dict[str, Any]:
     """
     Combines conversational memory, Query Rewriting, Question Classification, 
     and Hybrid MMR RAG Retrieval to answer contextually.
@@ -246,7 +247,7 @@ def chat_with_document(doc_id: str, message: str) -> Dict[str, Any]:
     chat_history = get_chat_history(doc_id)
     
     # 3. Semantic Query Rewriting (Step 6)
-    standalone_query = rewrite_query(message, chat_history)
+    standalone_query = await rewrite_query(message, chat_history)
 
     # Security: Sanitize user message before it enters any prompt
     safe_message = sanitize_user_query(message)
@@ -293,7 +294,7 @@ def chat_with_document(doc_id: str, message: str) -> Dict[str, Any]:
     from services.observability_service import TraceContext, estimate_grounding_quality
     try:
         with TraceContext("chat.generate", {"doc_id": doc_id, "category": category}):
-            reply = generate_text(prompt)
+            reply = await generate_text_async(prompt, timeout=45)
     except Exception as e:
         reply = f"Error generating text: {str(e)}"
 

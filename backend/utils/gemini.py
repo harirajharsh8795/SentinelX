@@ -400,7 +400,7 @@ Requires immediate operational scheduling and review of security logs."""
 **Source Citations:**
 • [{doc_label}] — Regulatory compliance directives extracted via RAG retrieval"""
 
-def generate_text(prompt: str, timeout: int = 60) -> str:
+def generate_text(prompt: str, timeout: int = 20) -> str:
     import sys
     import os
     # Fast bypass for unit tests to avoid connection timeouts in headless sandbox environments
@@ -420,7 +420,7 @@ def generate_text(prompt: str, timeout: int = 60) -> str:
 
     max_retries = 2
     retry_delay = 1
-    effective_timeout = min(timeout, 20)
+    effective_timeout = timeout
     last_error = None
 
     for attempt in range(1, max_retries + 1):
@@ -446,7 +446,7 @@ def generate_text(prompt: str, timeout: int = 60) -> str:
     return get_mock_response(prompt)
 
 
-async def generate_text_async(prompt: str, timeout: int = 20) -> str:
+async def generate_text_async(prompt: str, timeout: int = 45) -> str:
     import sys
     import os
     if "pytest" in sys.modules or os.getenv("TESTING") == "true":
@@ -471,15 +471,17 @@ async def generate_text_async(prompt: str, timeout: int = 20) -> str:
 
     for attempt in range(1, max_retries + 1):
         try:
-            logger.info(f"Invoking local Ollama model '{settings.ollama_model}' asynchronously (Attempt {attempt}/{max_retries})...")
-            async with httpx.AsyncClient() as client:
-                response = await client.post(ollama_url, json=payload, timeout=timeout)
-                if response.status_code == 200:
-                    data = response.json()
-                    content = data.get("message", {}).get("content", "").strip()
-                    return content
-                else:
-                    raise ValueError(f"Ollama returned non-200 status code: {response.status_code}")
+            with TraceContext("ollama.generate_async", {"prompt_len": len(prompt), "model": settings.ollama_model, "attempt": attempt}) as ctx:
+                logger.info(f"Invoking local Ollama model '{settings.ollama_model}' asynchronously (Attempt {attempt}/{max_retries})...")
+                async with httpx.AsyncClient() as client:
+                    response = await client.post(ollama_url, json=payload, timeout=timeout)
+                    if response.status_code == 200:
+                        data = response.json()
+                        content = data.get("message", {}).get("content", "").strip()
+                        ctx.add_tokens(prompt=prompt, response=content)
+                        return content
+                    else:
+                        raise ValueError(f"Ollama returned non-200 status code: {response.status_code}")
         except Exception as e:
             last_error = str(e)
             logger.warning(f"Ollama async generation failed on attempt {attempt}: {e}")

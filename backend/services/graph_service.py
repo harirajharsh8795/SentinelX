@@ -136,15 +136,15 @@ def _inject_task_actions(nodes: List[dict], edges: List[dict], document_id: str)
     return nodes, edges
 
 
-_graph_memory_cache = {}
+_graph_cache = {}
 
 
 def generate_knowledge_graph(document_id: str) -> dict:
     from database.database import get_db_context
     
     # Quick in-memory cache check
-    if document_id in _graph_memory_cache:
-        return _graph_memory_cache[document_id]
+    if document_id in _graph_cache:
+        return _graph_cache[document_id]
     
     with get_db_context() as db:
         doc = db.query(Document).filter(Document.id == document_id).first()
@@ -154,7 +154,7 @@ def generate_knowledge_graph(document_id: str) -> dict:
                     res = json.loads(doc.knowledge_graph)
                 elif isinstance(doc.knowledge_graph, dict):
                     res = doc.knowledge_graph
-                _graph_memory_cache[document_id] = res
+                _graph_cache[document_id] = res
                 return res
             except Exception as e:
                 logger.warning(f"Error loading cached knowledge_graph JSON: {e}")
@@ -276,7 +276,7 @@ DOCUMENT:
             doc.knowledge_graph = result_dict
             db.commit()
 
-    _graph_memory_cache[document_id] = result_dict
+    _graph_cache[document_id] = result_dict
     return result_dict
 
 

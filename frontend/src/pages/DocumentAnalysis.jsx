@@ -11,34 +11,45 @@ export default function DocumentAnalysis() {
   const [error, setError] = useState("");
   const docId = useStore((state) => state.selectedDocId);
 
+  const fetchAnalysis = (targetDocId, isRetry = false) => {
+    setLoading(true);
+    setError("");
+    api
+      .post("/analyze-document", null, { params: { doc_id: targetDocId } })
+      .then((response) => {
+        setAnalysis(response.data);
+        localStorage.setItem(`analysis_${targetDocId}`, JSON.stringify(response.data));
+        setLoading(false);
+      })
+      .catch((err) => {
+        if (!isRetry) {
+          console.warn("Analysis failed, auto-retrying once...");
+          fetchAnalysis(targetDocId, true);
+        } else {
+          setAnalysis(null);
+          setError(err?.response?.data?.detail || "Analysis failed. Please retry.");
+          setLoading(false);
+        }
+      });
+  };
+
   useEffect(() => {
     if (!docId) {
       setAnalysis(null);
       setLoading(false);
+      setError("");
       return;
     }
-
-    setLoading(true);
-    setError("");
 
     const stored = localStorage.getItem(`analysis_${docId}`);
     if (stored) {
       setAnalysis(JSON.parse(stored));
       setLoading(false);
+      setError("");
       return;
     }
 
-    api
-      .post("/analyze-document", null, { params: { doc_id: docId } })
-      .then((response) => {
-        setAnalysis(response.data);
-        localStorage.setItem(`analysis_${docId}`, JSON.stringify(response.data));
-      })
-      .catch((err) => {
-        setAnalysis(null);
-        setError(err?.response?.data?.detail || "Analysis failed. Please retry.");
-      })
-      .finally(() => setLoading(false));
+    fetchAnalysis(docId, false);
   }, [docId]);
 
   if (!docId) {
@@ -81,11 +92,22 @@ export default function DocumentAnalysis() {
       <GlassCard>
         <h3 className="text-xl font-display text-white">Executive Intelligence Summary</h3>
         {loading ? (
-          <div className="mt-3">
+          <div className="mt-3 space-y-4">
+            <div className="text-sm text-mint animate-pulse font-medium">
+              AI processing on Jetson hardware...
+            </div>
             <LoadingSkeleton />
           </div>
         ) : error ? (
-          <p className="mt-4 text-base text-gold">{error}</p>
+          <div className="mt-4 space-y-4">
+            <p className="text-gold text-base">{error}</p>
+            <button
+              onClick={() => fetchAnalysis(docId, false)}
+              className="px-4 py-2 bg-primary/20 text-primary border border-primary/30 rounded-full hover:bg-primary transition text-sm font-medium"
+            >
+              Retry Analysis
+            </button>
+          </div>
         ) : (
           <p className="mt-4 text-base text-slate-200/80 whitespace-pre-wrap leading-relaxed font-sans">
             {analysis?.summary || "Summary unavailable"}
@@ -96,7 +118,10 @@ export default function DocumentAnalysis() {
       <GlassCard>
         <h3 className="text-xl font-display text-white">Strategic Compliance Insights</h3>
         {loading ? (
-          <div className="mt-3">
+          <div className="mt-3 space-y-4">
+            <div className="text-sm text-mint animate-pulse font-medium">
+              AI processing on Jetson hardware...
+            </div>
             <LoadingSkeleton />
           </div>
         ) : (

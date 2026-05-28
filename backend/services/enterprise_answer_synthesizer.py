@@ -114,11 +114,32 @@ def enrich_agent_output(agent_output: dict, context: str) -> dict:
     """
     Full synthesis pipeline: enrich raw agent outputs with executive intelligence.
     """
-    synthesis = synthesize_executive_summary(
-        agent_output.get("maps", []),
-        agent_output.get("risks", []),
-        context[:3000],
-    )
+    import logging
+    logger = logging.getLogger(__name__)
+
+    try:
+        synthesis = synthesize_executive_summary(
+            agent_output.get("maps", []),
+            agent_output.get("risks", []),
+            context[:3000],
+        )
+        if not synthesis or not synthesis.get("executive_summary"):
+            raise ValueError("Synthesized executive summary is empty or malformed.")
+    except Exception as exc:
+        logger.error(f"Executive synthesis failed: {exc}. Generating fallback synthesis.")
+        # Fallback synthesis without LLM
+        maps = agent_output.get("maps", [])
+        risks = agent_output.get("risks", [])
+        depts = list({m.get("department", "Compliance") for m in maps if m.get("department")})
+        if not depts:
+            depts = ["Compliance"]
+        synthesis = {
+            "executive_summary": f"This document contains {len(maps)} compliance directives affecting {len(depts)} departments, including {', '.join(depts[:3])}. Critical checks focus on regulatory requirements. Current operational status is Under Review.",
+            "strategic_insights": f"**Business Implications**\nActionable measures are required to satisfy compliance rules.\n\n**Governance Responsibilities**\nBoard oversight is recommended to manage the {len(risks)} identified risks.\n\n**Operational Recommendations**\nPrioritize high severity actions to avoid non-compliance.\n\n**Compliance Exposure Analysis**\nReview timelines and penalty clauses in the document.\n\n**Strategic Actions**\nImplement the extracted measurable action points.",
+            "business_impact": f"Direct compliance mapping affects: {', '.join(depts)}.",
+            "risk_explanations": [{"risk": r.get("risk"), "severity": r.get("severity", "Medium"), "explanation": r.get("reason", "Lapse in controls"), "mitigation": "Review controls"} for r in risks],
+            "priority_actions": [m.get("title") for m in maps[:3] if m.get("title")]
+        }
 
     executive_text = synthesis["executive_summary"]
     if synthesis["business_impact"]:
