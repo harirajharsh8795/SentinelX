@@ -2,7 +2,7 @@ import os
 import sys
 import time
 import requests
-from typing import List
+from typing import List, Optional
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -77,11 +77,12 @@ def warmup_embeddings():
 # Execute warmup on module load (skipped in tests)
 warmup_embeddings()
 
-def simple_embedding(text: str) -> List[float]:
+def simple_embedding(text: str, timeout: Optional[float] = None) -> List[float]:
     """
     Generate vector embeddings locally via Ollama.
     Throws a RuntimeError if Ollama is unreachable or errors out.
     """
+    from utils.config import settings
     global _first_request_made
     if not text or not text.strip():
         # Standard fallback for blank inputs
@@ -91,11 +92,13 @@ def simple_embedding(text: str) -> List[float]:
     if IS_TESTING:
         return _get_pseudo_embedding(text)
 
-    # Determine timeout: 15s for the first actual query, 8s for subsequent ones
-    current_timeout = 8.0
-    if not _first_request_made:
-        logger.info("First actual request executing. Setting timeout to 15.0s.")
-        current_timeout = 15.0
+    # Determine timeout: use parameter, env settings, or request-based default
+    if timeout is None:
+        timeout = float(settings.ollama_embed_timeout)
+
+    current_timeout = timeout
+    if not _first_request_made and timeout == 45.0:  # standard default can be increased for first load
+        logger.info("First actual request executing. Setting timeout to 45.0s.")
         _first_request_made = True
 
     processed_text = text.strip()
@@ -125,6 +128,19 @@ def simple_embedding(text: str) -> List[float]:
     except Exception as e:
         logger.error(f"Fatal error generating local embedding via Ollama: {e}")
         raise RuntimeError(f"Local embedding generation failed: {str(e)}") from e
+
+
+async def simple_embedding_async(text: str, timeout: Optional[float] = None) -> List[float]:
+    """
+    Asynchronously generate vector embeddings locally via Ollama by offloading to a thread.
+    """
+    import asyncio
+    from utils.config import settings
+    
+    if timeout is None:
+        timeout = float(settings.ollama_embed_timeout)
+        
+    return await asyncio.to_thread(simple_embedding, text, timeout)
 
 
 OLLAMA_BATCH_EMBED_URL = "http://localhost:11434/api/embed"

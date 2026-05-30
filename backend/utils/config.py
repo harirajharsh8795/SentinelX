@@ -77,13 +77,15 @@ class Settings:
         # ======================================================================
         self.ollama_url = _get_env("OLLAMA_URL", "http://localhost:11434")
         self.ollama_model = _get_env("OLLAMA_MODEL", "qwen2.5:1.5b")
+        self.ollama_chat_timeout = int(_get_env("OLLAMA_CHAT_TIMEOUT", "45"))
+        self.ollama_embed_timeout = int(_get_env("OLLAMA_EMBED_TIMEOUT", "45"))
 
         # ======================================================================
         # STORAGE PATHS — All configurable via .env
         # ======================================================================
-        self.chroma_persist_dir = _get_env("CHROMA_PERSIST_DIR", "./vector_store")
-        self.upload_dir = _get_env("UPLOAD_DIR", "./uploads")
-        self.corpus_dir = _get_env("CORPUS_DIR", "./data/corpus")
+        self.chroma_persist_dir = os.path.normpath(_get_env("CHROMA_PERSIST_DIR", "./vector_store"))
+        self.upload_dir = os.path.normpath(_get_env("UPLOAD_DIR", "./uploads"))
+        self.corpus_dir = os.path.normpath(_get_env("CORPUS_DIR", "./data/corpus"))
 
         # ======================================================================
         # APPLICATION SETTINGS

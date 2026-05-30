@@ -7,5 +7,6 @@ _client = None
 def get_client() -> chromadb.PersistentClient:
     global _client
     if _client is None:
-        _client = chromadb.PersistentClient(path=settings.chroma_persist_dir)
+        import os
+        _client = chromadb.PersistentClient(path=os.path.abspath(settings.chroma_persist_dir))
     return _client

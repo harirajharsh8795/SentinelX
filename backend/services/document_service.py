@@ -11,6 +11,8 @@ from utils.config import settings
 from utils.security import ensure_upload_dir, sanitize_filename
 from utils.storage import storage_client
 from utils.input_sanitizer import sanitize_document_text  # Security: Prompt injection defense
+from utils.logger import get_logger
+logger = get_logger(__name__)
 from services.event_broadcaster import event_bus, EventLogger  # Real-time telemetry
 from rag.chunker import chunk_text
 from rag.hybrid_search import hybrid_search_and_rerank
@@ -129,6 +131,39 @@ def _extract_text_from_file(path: str, filename: str) -> str:
     return text
 
 
+def delete_all_existing_documents(db):
+    from database.models import Document, ChatMessage, Task, Alert, AgentGraphState
+    from vector_db.chroma_client import get_client
+    
+    old_docs = db.query(Document).all()
+    for old_doc in old_docs:
+        logger.info(f"Automatically deleting old document: {old_doc.filename} ({old_doc.id})")
+        # 1. Delete file from local filesystem
+        try:
+            if old_doc.file_path and os.path.exists(old_doc.file_path):
+                os.remove(old_doc.file_path)
+        except Exception as e:
+            logger.warning(f"Failed to delete old file {old_doc.file_path}: {e}")
+            
+        # 2. Delete ChromaDB collection
+        try:
+            client = get_client()
+            client.delete_collection(name=old_doc.id)
+        except Exception as e:
+            logger.warning(f"Failed to delete Chroma collection {old_doc.id}: {e}")
+            
+        # 3. Delete related database records
+        try:
+            db.query(ChatMessage).filter(ChatMessage.session_id == old_doc.id).delete()
+            db.query(Task).filter(Task.document_id == old_doc.id).delete()
+            db.query(Alert).filter(Alert.document_id == old_doc.id).delete()
+            db.query(AgentGraphState).filter(AgentGraphState.document_id == old_doc.id).delete()
+        except Exception as e:
+            logger.warning(f"Failed to delete related records for {old_doc.id}: {e}")
+        
+        db.delete(old_doc)
+
+
 def ingest_file_from_path(
     filepath: str,
     regulator: str = None,
@@ -146,6 +181,14 @@ def ingest_file_from_path(
     doc_id = str(uuid4())
     save_path = os.path.join(settings.upload_dir, f"{doc_id}-{safe_name}")
 
+    from database.database import get_db_context
+    with get_db_context() as db:
+        delete_all_existing_documents(db)
+        db.commit()
+
+    from services.event_broadcaster import event_bus
+    event_bus.emit("system_info", f"Starting ingestion for corpus file: {filename}", doc_id=doc_id)
+
     with open(filepath, "rb") as src:
         content = src.read()
     if not content:
@@ -156,11 +199,14 @@ def ingest_file_from_path(
 
     from io import BytesIO
     storage_uri = storage_client.upload_fileobj(BytesIO(content), safe_name)
+    event_bus.emit("system_info", f"File saved locally and uploaded to cloud storage.", doc_id=doc_id)
 
     text = _extract_text_from_file(save_path, safe_name)
+    event_bus.emit("system_info", f"Text extraction complete. Total chars: {len(text)}", doc_id=doc_id)
     text = clean_extracted_text(text)
     text = sanitize_document_text(text, source_label=f"ingest_path:{safe_name}")  # Security: strip injections
     text = mask_pii(text)
+    event_bus.emit("system_info", f"Text normalization, sanitization, and PII masking complete.", doc_id=doc_id)
 
     if not text.strip():
         raise ValueError(f"No extractable text from {filename}")
@@ -171,6 +217,8 @@ def ingest_file_from_path(
     chunks = chunk_text(text)
     if not chunks:
         raise ValueError("No indexable text extracted from document. PDF may be scanned/image-only.")
+    event_bus.emit("system_info", f"Semantic chunking complete. Generated {len(chunks)} chunks.", doc_id=doc_id)
+    
     EventLogger.log_embedding_started(doc_id, safe_name, len(chunks))
     add_chunks(
         doc_id,
@@ -182,7 +230,6 @@ def ingest_file_from_path(
         document_name=safe_name,
     )
 
-    from database.database import get_db_context
     with get_db_context() as db:
         doc = Document(
             id=doc_id,
@@ -214,13 +261,21 @@ def ingest_file_from_path(
     }
 
 
-async def ingest_document(file) -> Dict[str, Any]:
+def ingest_document(file) -> Dict[str, Any]:
     ensure_upload_dir(settings.upload_dir)
     safe_name = sanitize_filename(file.filename)
     doc_id = str(uuid4())
     save_path = os.path.join(settings.upload_dir, f"{doc_id}-{safe_name}")
 
-    content = await file.read()
+    from database.database import get_db_context
+    with get_db_context() as db:
+        delete_all_existing_documents(db)
+        db.commit()
+
+    from services.event_broadcaster import event_bus
+    event_bus.emit("system_info", f"Initializing secure upload for {safe_name}...", doc_id=doc_id)
+
+    content = file.file.read()
     if not content:
         raise ValueError("Empty file uploaded")
     if len(content) > 15 * 1024 * 1024:
@@ -230,19 +285,26 @@ async def ingest_document(file) -> Dict[str, Any]:
 
     from io import BytesIO
     storage_uri = storage_client.upload_fileobj(BytesIO(content), safe_name)
+    event_bus.emit("system_info", f"Secure upload complete. Storage URI: {storage_uri}", doc_id=doc_id)
 
-    text = await asyncio.to_thread(_extract_text_from_file, save_path, safe_name)
+    event_bus.emit("system_info", "Extracting text from PDF...", doc_id=doc_id)
+    text = _extract_text_from_file(save_path, safe_name)
+    event_bus.emit("system_info", f"Text extraction complete. Total character count: {len(text)}", doc_id=doc_id)
+    
     text = clean_extracted_text(text)
     text = sanitize_document_text(text, source_label=f"upload:{safe_name}")  # Security: strip injections
     text = mask_pii(text)
+    event_bus.emit("system_info", "Text cleaning and sanitization complete.", doc_id=doc_id)
 
     if not text.strip():
         raise ValueError("No extractable text or content found in uploaded PDF.")
 
     regulator = detect_regulator(text, safe_name)
     chunks = chunk_text(text)
-    await asyncio.to_thread(
-        add_chunks,
+    event_bus.emit("system_info", f"Semantic chunking complete. Generated {len(chunks)} chunks.", doc_id=doc_id)
+    
+    EventLogger.log_embedding_started(doc_id, safe_name, len(chunks))
+    add_chunks(
         doc_id,
         chunks,
         regulator=regulator,
@@ -250,7 +312,6 @@ async def ingest_document(file) -> Dict[str, Any]:
         document_name=safe_name,
     )
 
-    from database.database import get_db_context
     with get_db_context() as db:
         doc = Document(
             id=doc_id,
@@ -264,6 +325,8 @@ async def ingest_document(file) -> Dict[str, Any]:
         )
         db.add(doc)
         db.commit()
+    EventLogger.log_embedding_completed(doc_id, safe_name)
+    event_bus.emit("system_info", "Document indexed and saved successfully.", doc_id=doc_id)
 
     return {
         "document_id": doc_id,
@@ -275,7 +338,7 @@ async def ingest_document(file) -> Dict[str, Any]:
     }
 
 
-async def ingest_bytes(
+def ingest_bytes(
     filename: str,
     content: bytes,
     regulator: str = None,
@@ -290,6 +353,14 @@ async def ingest_bytes(
     doc_id = str(uuid4())
     save_path = os.path.join(settings.upload_dir, f"{doc_id}-{safe_name}")
 
+    from database.database import get_db_context
+    with get_db_context() as db:
+        delete_all_existing_documents(db)
+        db.commit()
+
+    from services.event_broadcaster import event_bus
+    event_bus.emit("system_info", f"Ingesting scraped file: {filename}", doc_id=doc_id)
+
     if not content:
         raise ValueError("Empty content")
     with open(save_path, "wb") as f:
@@ -298,7 +369,7 @@ async def ingest_bytes(
     from io import BytesIO
     storage_uri = storage_client.upload_fileobj(BytesIO(content), safe_name)
 
-    text = await asyncio.to_thread(_extract_text_from_file, save_path, safe_name)
+    text = _extract_text_from_file(save_path, safe_name)
     text = clean_extracted_text(text)
     text = sanitize_document_text(text, source_label=f"scrape:{safe_name}")  # Security: strip injections
     text = mask_pii(text)
@@ -310,9 +381,11 @@ async def ingest_bytes(
         regulator = detect_regulator(text, safe_name)
 
     chunks = chunk_text(text)
-    await asyncio.to_thread(
-        add_chunks,
-        doc_id, chunks,
+    
+    EventLogger.log_embedding_started(doc_id, safe_name, len(chunks))
+    add_chunks(
+        doc_id,
+        chunks,
         regulator=regulator,
         framework=framework,
         source_url=source_url,
@@ -320,7 +393,6 @@ async def ingest_bytes(
         document_name=safe_name,
     )
 
-    from database.database import get_db_context
     with get_db_context() as db:
         doc = Document(
             id=doc_id,
@@ -337,6 +409,7 @@ async def ingest_bytes(
         )
         db.add(doc)
         db.commit()
+    EventLogger.log_embedding_completed(doc_id, safe_name)
 
     return {
         "document_id": doc_id,
@@ -382,7 +455,7 @@ async def analyze_document(doc_id: str) -> Dict[str, Any]:
     sources = []
     
     for query in queries:
-        retrieved = hybrid_search_and_rerank(query, final_k=6, doc_id=doc_id, regulator=regulator)
+        retrieved = await asyncio.to_thread(hybrid_search_and_rerank, query, final_k=6, doc_id=doc_id, regulator=regulator)
         for chunk in retrieved:
             # Reconstruct the string to inject metadata for citations
             section = chunk["metadata"].get("section_title", "General")
@@ -414,10 +487,21 @@ async def analyze_document(doc_id: str) -> Dict[str, Any]:
     context = merge_retrieved_context(context_chunks)
     # Security: Sanitize merged context before it enters LLM agent graph
     context = sanitize_document_text(context, source_label=f"analysis_context:{doc_id}")
+    
+    # Run agent graph with 60-second hard timeout to prevent infinite hang
+    agent_output = None
     try:
-        agent_output = await run_autonomous_compliance_graph(doc_id, context)
+        agent_output = await asyncio.wait_for(
+            run_autonomous_compliance_graph(doc_id, context),
+            timeout=60.0
+        )
+    except asyncio.TimeoutError:
+        logger.warning(f"Agent graph timed out after 60s for doc {doc_id}. Recovering partial results.")
     except Exception as exc:
         logger.error(f"Graph execution failed: {exc}. Trying to retrieve partial results from db.")
+
+    # If agent graph failed or timed out, recover partial results
+    if agent_output is None:
         from database.models import AgentGraphState as DBGraphState
         from services.enterprise_answer_synthesizer import enrich_agent_output
         
@@ -442,7 +526,11 @@ async def analyze_document(doc_id: str) -> Dict[str, Any]:
                     "conflicts": state_data.get("conflicts", [])
                 }
                 
-                enriched = enrich_agent_output(raw_output, context)
+                try:
+                    enriched = enrich_agent_output(raw_output, context)
+                except Exception:
+                    enriched = raw_output
+                    
                 agent_output = {
                     "document_id": doc_id,
                     "summary": enriched.get("synthesis", {}).get("executive_summary", "") or enriched.get("executive_insights", ""),
@@ -489,51 +577,45 @@ async def analyze_document(doc_id: str) -> Dict[str, Any]:
                     "hallucination_flag": False,
                     "conflicts": []
                 }
-                
-        # Make sure we save the partial results into the DB so they are cached!
-        res_dict = {
-            **agent_output,
-            "sources": sources
-        }
-        
+
+    # Build final result with sources
+    res_dict = {
+        **agent_output,
+        "sources": sources
+    }
+
+    # Save analysis result to DB (synchronous to ensure it's cached)
+    def _write_analysis_result():
         with get_db_context() as db:
             doc_db = db.query(Document).filter(Document.id == doc_id).first()
             if doc_db:
                 doc_db.analysis_result = res_dict
                 db.commit()
+    
+    await asyncio.to_thread(_write_analysis_result)
+
+    # Run audit logs and knowledge graph in background (fire-and-forget)
+    async def _background_post_analysis():
+        try:
+            async with db_write_lock:
+                await asyncio.to_thread(
+                    add_agent_logs,
+                    ["Compliance Agent", "Risk Agent", "Workflow Agent", "Validation Agent", "Alert Agent", "Cross-Regulation Agent"],
+                    document_id=doc_id
+                )
                 
-        return res_dict
+                audit_notes = [f"Automated audit check passed with compliance score: {agent_output.get('compliance_score', 100)}%"]
+                for risk in agent_output.get("risks", []):
+                    audit_notes.append(f"Risk flagged: {risk.get('risk')} - severity: {risk.get('severity')}")
+                await asyncio.to_thread(add_audit_events, audit_notes, document_id=doc_id)
 
-    # Add logs and audit details under db_write_lock
-    async with db_write_lock:
-        await asyncio.to_thread(
-            add_agent_logs,
-            ["Compliance Agent", "Risk Agent", "Workflow Agent", "Validation Agent", "Alert Agent", "Cross-Regulation Agent"],
-            document_id=doc_id
-        )
-        
-        audit_notes = [f"Automated audit check passed with compliance score: {agent_output['compliance_score']}%"]
-        for risk in agent_output.get("risks", []):
-            audit_notes.append(f"Risk flagged: {risk.get('risk')} - severity: {risk.get('severity')}")
-        await asyncio.to_thread(add_audit_events, audit_notes, document_id=doc_id)
+                # Pre-generate knowledge graph in background to cache it
+                from services.graph_service import generate_knowledge_graph
+                await asyncio.to_thread(generate_knowledge_graph, doc_id)
+        except Exception as e:
+            logger.error(f"Background post-analysis failed: {e}")
 
-        # Pre-generate knowledge graph in background to cache it
-        from services.graph_service import generate_knowledge_graph
-        await asyncio.to_thread(generate_knowledge_graph, doc_id)
-
-        res_dict = {
-            **agent_output,
-            "sources": sources
-        }
-
-        def _write_analysis_result():
-            with get_db_context() as db:
-                doc_db = db.query(Document).filter(Document.id == doc_id).first()
-                if doc_db:
-                    doc_db.analysis_result = res_dict
-                    db.commit()
-                    
-        await asyncio.to_thread(_write_analysis_result)
+    asyncio.create_task(_background_post_analysis())
 
     return res_dict
 

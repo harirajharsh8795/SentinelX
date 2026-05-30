@@ -35,26 +35,18 @@ def hybrid_search_and_rerank(
     3. Deduplicate candidates to prevent redundancy.
     4. Rerank candidates using keyword match, regulatory boost, and MMR diversity.
     """
-    from services.query_rewriter import rewrite_query_pipeline
+    from services.query_rewriter import expand_domain_terms
     from rag.reranker import rerank_chunks
     
-    # 1. Run Query Rewriting Pipeline
-    try:
-        rewrite_res = rewrite_query_pipeline(query)
-        search_queries = rewrite_res.get("all_search_queries", [query])
-        hyde_doc = rewrite_res.get("hyde_document", query)
-    except Exception as e:
-        logger.warning(f"Query rewriter pipeline failed: {e}. Falling back to default query.")
-        search_queries = [query]
-        hyde_doc = query
-
-    # 2. Gather candidates from all search formulations + HyDE doc
+    # 1. Lightweight domain-aware expansion (NO LLM calls — fast)
+    expanded_query = expand_domain_terms(query)
+ 
+    # 2. Gather candidates from original + expanded queries
     candidates = []
     seen_ids = set()
     
-    # Query for each expanded search intent and the HyDE document
-    # We query top_k=10 for each to get a rich candidate set
-    query_targets = list(set(search_queries + [hyde_doc]))
+    # Query with both original and domain-expanded versions
+    query_targets = list(set([query, expanded_query]))
     
     for q in query_targets:
         results = search_similar(q, top_k=10, doc_id=doc_id, regulator=regulator)

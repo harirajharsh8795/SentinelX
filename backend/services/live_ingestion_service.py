@@ -72,7 +72,8 @@ async def ingest_scraped_item(item: ScrapedItem) -> Dict[str, Any]:
     external_id = f"scrape:{item.regulator}:{item.url}"
 
     try:
-        result = await ingest_bytes(
+        result = await asyncio.to_thread(
+            ingest_bytes,
             filename=filename,
             content=content,
             regulator=item.regulator,

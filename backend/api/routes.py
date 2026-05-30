@@ -50,7 +50,8 @@ async def upload_document(file: UploadFile = File(...), current_user = Depends(g
     if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF uploads allowed")
     try:
-        result = await ingest_document(file)
+        import asyncio
+        result = await asyncio.to_thread(ingest_document, file)
         return result
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -272,19 +273,21 @@ def corpus_stats_api(current_user = Depends(get_current_active_user)):
     return get_corpus_stats()
 
 @router.post("/corpus/ingest")
-def corpus_ingest_api(payload: CorpusIngestRequest, current_user = Depends(get_current_active_user)):
+async def corpus_ingest_api(payload: CorpusIngestRequest, current_user = Depends(get_current_active_user)):
     try:
+        import asyncio
         if payload.source_code:
-            return ingest_corpus_source(payload.source_code.upper(), force=payload.force)
-        return ingest_all_corpus(force=payload.force)
+            return await asyncio.to_thread(ingest_corpus_source, payload.source_code.upper(), force=payload.force)
+        return await asyncio.to_thread(ingest_all_corpus, force=payload.force)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
 
 @router.get("/corpus/search")
-def corpus_search_api(q: str, regulator: str = None, top_k: int = 5, current_user = Depends(get_current_active_user)):
+async def corpus_search_api(q: str, regulator: str = None, top_k: int = 5, current_user = Depends(get_current_active_user)):
     if not q.strip():
         raise HTTPException(status_code=400, detail="Query q is required")
-    return {"query": q, "results": search_corpus(q, regulator=regulator, top_k=top_k)}
+    import asyncio
+    return {"query": q, "results": await asyncio.to_thread(search_corpus, q, regulator=regulator, top_k=top_k)}
 
 # Phase 8: Live Scraping & Auto-Indexing
 @router.post("/scrape/run")

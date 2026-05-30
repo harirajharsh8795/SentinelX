@@ -99,7 +99,7 @@ async def websocket_ai_stream(websocket: WebSocket, document_id: str):
         from services.chat_service import chat_with_document
         
         try:
-            result = chat_with_document(document_id, message)
+            result = await chat_with_document(document_id, message)
             reply = result.get("reply", "No distinct reply.")
             sources = result.get("sources", [])
             debug = result.get("debug", {})
@@ -119,8 +119,9 @@ async def websocket_ai_stream(websocket: WebSocket, document_id: str):
             }, websocket)
 
         except Exception as e:
-            logger.error(f"Chat stream error: {e}")
-            await manager.send_personal_message({"type": "error", "message": "Backend engine error"}, websocket)
+            logger.error(f"Chat stream error: {e}", exc_info=True)
+            fallback_msg = "Unable to process your query right now. Please try again."
+            await manager.send_personal_message({"type": "error", "message": fallback_msg}, websocket)
 
     except WebSocketDisconnect:
         manager.disconnect(document_id, client_id)

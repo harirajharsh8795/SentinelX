@@ -1,4 +1,5 @@
 import os
+import asyncio
 from typing import Dict, List, Any
 from rag.hybrid_search import hybrid_search_and_rerank
 from services.gemini_service import generate_text, generate_text_async
@@ -232,11 +233,48 @@ AI Answer:
 """
     return prompt
 
+# Hinglish/short query expansion — maps common Hinglish commands to English equivalents
+_HINGLISH_EXPANSIONS = {
+    "risk btao": "What are the main risks mentioned in this document?",
+    "risks btao": "What are the main risks mentioned in this document?",
+    "risk batao": "What are the main risks mentioned in this document?",
+    "summary do": "Provide a detailed summary of this document.",
+    "summarize karo": "Provide a detailed summary of this document.",
+    "kya hai": "What is this document about?",
+    "ye kya hai": "What is this document about?",
+    "penalty btao": "What are the penalties mentioned in this document?",
+    "penalties btao": "What are the penalties mentioned in this document?",
+    "deadline btao": "What are the deadlines and timelines in this document?",
+    "audit btao": "What are the audit requirements in this document?",
+    "compliance btao": "What are the compliance requirements in this document?",
+    "kyc btao": "What are the KYC requirements mentioned in this document?",
+    "cyber btao": "What are the cybersecurity requirements in this document?",
+}
+
+def expand_hinglish_query(message: str) -> str:
+    """Expand short Hinglish queries into full English search queries."""
+    msg_lower = message.strip().lower()
+    # Direct match
+    if msg_lower in _HINGLISH_EXPANSIONS:
+        return _HINGLISH_EXPANSIONS[msg_lower]
+    # Partial match for very short queries (< 4 words)
+    words = msg_lower.split()
+    if len(words) <= 3:
+        for pattern, expansion in _HINGLISH_EXPANSIONS.items():
+            pattern_words = pattern.split()
+            if all(pw in words for pw in pattern_words):
+                return expansion
+    return message
+
+
 async def chat_with_document(doc_id: str, message: str) -> Dict[str, Any]:
     """
     Combines conversational memory, Query Rewriting, Question Classification, 
     and Hybrid MMR RAG Retrieval to answer contextually.
     """
+    # 0. Expand Hinglish/short queries to English equivalents
+    expanded_message = expand_hinglish_query(message)
+
     # 1. Resolve regulator constraint
     db = SessionLocal()
     doc = db.query(Document).filter(Document.id == doc_id).first()
@@ -247,13 +285,13 @@ async def chat_with_document(doc_id: str, message: str) -> Dict[str, Any]:
     chat_history = get_chat_history(doc_id)
     
     # 3. Semantic Query Rewriting (Step 6)
-    standalone_query = await rewrite_query(message, chat_history)
+    standalone_query = await rewrite_query(expanded_message, chat_history)
 
     # Security: Sanitize user message before it enters any prompt
     safe_message = sanitize_user_query(message)
     
     # 4. Retrieve chunks with MMR enabled + strict regulator isolation (Phase 3)
-    retrieved_chunks = hybrid_search_and_rerank(query=standalone_query, final_k=6, doc_id=doc_id, regulator=regulator)
+    retrieved_chunks = await asyncio.to_thread(hybrid_search_and_rerank, query=standalone_query, final_k=6, doc_id=doc_id, regulator=regulator)
     
     context_text = ""
     sources = []

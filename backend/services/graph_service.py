@@ -27,8 +27,8 @@ SEVERITY_PROPAGATION = {"High": 1.0, "Medium": 0.6, "Low": 0.3}
 
 
 def _get_document_chunks(document_id: str) -> List[Dict[str, Any]]:
-    client = get_client()
-    collection = client.get_or_create_collection(name="canara_sentinel_v4")
+    from rag.retriever import get_collection
+    collection = get_collection(document_id)
     results = collection.get(
         where={"doc_id": document_id},
         include=["documents", "metadatas"],

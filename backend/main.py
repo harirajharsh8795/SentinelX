@@ -54,8 +54,11 @@ async def lifespan(app: FastAPI):
                 models.Document.ingestion_type == "corpus"
             ).count()
         if corpus_count == 0:
-            result = ingest_all_corpus(force=False)
-            logger.info("Auto-seeded corpus: %s documents", result.get("total_ingested", 0))
+            import asyncio
+            async def _bg_seed():
+                result = await asyncio.to_thread(ingest_all_corpus, force=False)
+                logger.info("Auto-seeded corpus: %s documents", result.get("total_ingested", 0))
+            asyncio.create_task(_bg_seed())
 
     start_scheduler()
     logger.info("Application startup complete.")
