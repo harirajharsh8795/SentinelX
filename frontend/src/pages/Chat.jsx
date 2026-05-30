@@ -1,63 +1,46 @@
 import { useState, useRef, useEffect } from "react";
 import GlassCard from "../components/GlassCard.jsx";
 import CitationCard from "../components/CitationCard.jsx";
+import ChatMessage from "../components/ChatMessage.jsx";
 import api from "../services/api.js";
 import { useStore } from "../store/useStore.js";
+import { useChatStore } from "../store/useChatStore.js";
 import { Link } from "react-router-dom";
 
-// Utility to render rich text with lists, bolding, and inline code
-const formatText = (text) => {
-  if (!text) return null;
-  const lines = text.split("\n");
-  
-  return lines.map((line, lineIdx) => {
-    const isBullet = line.trim().startsWith("•") || line.trim().startsWith("-");
-    const cleanLine = isBullet ? line.trim().substring(1).trim() : line;
+const THINKING_MESSAGES = [
+  "Retrieving relevant clauses...",
+  "Cross-referencing regulations...",
+  "Analyzing compliance gaps...",
+  "Synthesizing intelligence...",
+  "Validating against document...",
+  "Generating structured response..."
+];
 
-    const parts = cleanLine.split(/(\*\*.*?\*\*|`.*?`)/g);
-    const lineContent = parts.map((part, i) => {
-      if (part.startsWith("**") && part.endsWith("**")) {
-        return <strong key={i} className="font-extrabold text-mint">{part.slice(2, -2)}</strong>;
-      }
-      if (part.startsWith("`") && part.endsWith("`")) {
-        return <code key={i} className="font-mono bg-black/40 text-accent px-1.5 py-0.5 rounded text-xs">{part.slice(1, -1)}</code>;
-      }
-      return <span key={i}>{part}</span>;
-    });
-
-    if (isBullet) {
-      return (
-        <li key={lineIdx} className="ml-4 list-disc text-slate-100 mb-1">
-          {lineContent}
-        </li>
-      );
-    }
-
-    return (
-      <p key={lineIdx} className="mb-1.5 text-slate-100 leading-relaxed">
-        {lineContent}
-      </p>
-    );
-  });
-};
+const formatTime = (s) => 
+  `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 
 export default function Chat() {
   const docId = useStore((state) => state.selectedDocId);
-  const [messages, setMessages] = useState([
-    { 
-      role: "assistant", 
-      content: "Hello! I am SentinelX, your Autonomous Regulatory Intelligence & Compliance Operating System. I am ready to answer complex compliance queries based on the active document.",
-      sources: null,
-      debug: null
+  
+  const messages = useChatStore((state) => state.messages);
+  const setMessages = useChatStore((state) => state.setMessages);
+  const clearMessages = useChatStore((state) => state.clearMessages);
+  const chatDocId = useChatStore((state) => state.documentId);
+  const setChatDocId = useChatStore((state) => state.setDocumentId);
+
+  useEffect(() => {
+    if (docId && docId !== chatDocId) {
+      clearMessages();
+      setChatDocId(docId);
     }
-  ]);
+  }, [docId, chatDocId, clearMessages, setChatDocId]);
 
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [inspectSource, setInspectSource] = useState(null);
   const endRef = useRef(null);
   const [thinkingIndex, setThinkingIndex] = useState(0);
-  const [timerSeconds, setTimerSeconds] = useState(0);
+  const [elapsed, setElapsed] = useState(0);
   const [showTimeoutWarning, setShowTimeoutWarning] = useState(false);
 
   const [recording, setRecording] = useState(false);
@@ -339,31 +322,30 @@ export default function Chat() {
     }
   };
 
-  const thinkingMessages = [
-    "Retrieving relevant clauses...",
-    "Cross-referencing regulations...",
-    "Analyzing compliance gaps...",
-    "Synthesizing intelligence...",
-    "Validating against document...",
-    "Generating structured response..."
-  ];
-
-  const isJetsonMode = import.meta.env.VITE_JETSON_MODE === "true";
+  const isJetson = import.meta.env.VITE_JETSON_MODE === "true";
 
   useEffect(() => {
-    let timerInterval;
-    let msgInterval;
+    if (!loading) return;
+    const interval = setInterval(() => {
+      setThinkingIndex(i => (i + 1) % THINKING_MESSAGES.length);
+    }, 2500);
+    return () => clearInterval(interval);
+  }, [loading]);
+
+  useEffect(() => {
+    if (!loading) {
+      setElapsed(0); return;
+    }
+    const timer = setInterval(() => {
+      setElapsed(e => e + 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [loading]);
+
+  useEffect(() => {
     let timeoutId;
     if (loading) {
-      setTimerSeconds(0);
-      setThinkingIndex(0);
       setShowTimeoutWarning(false);
-      timerInterval = setInterval(() => {
-        setTimerSeconds(prev => prev + 1);
-      }, 1000);
-      msgInterval = setInterval(() => {
-        setThinkingIndex(prev => (prev + 1) % thinkingMessages.length);
-      }, 3000);
       timeoutId = setTimeout(() => {
         setShowTimeoutWarning(true);
         safeSetLoading(false);
@@ -384,13 +366,8 @@ export default function Chat() {
           wsRef.current.close();
         }
       }, 90000);
-    } else {
-      setTimerSeconds(0);
-      setThinkingIndex(0);
     }
     return () => {
-      clearInterval(timerInterval);
-      clearInterval(msgInterval);
       clearTimeout(timeoutId);
     };
   }, [loading]);
@@ -482,13 +459,13 @@ export default function Chat() {
             <div key={idx} className={`flex flex-col ${msg.role === "user" ? "items-end" : "items-start"}`}>
               {/* Message Bubble */}
               <div 
-                className={`max-w-[85%] p-5 rounded-2xl whitespace-pre-wrap shadow-lg ${
+                className={`max-w-[85%] p-5 rounded-2xl shadow-lg ${
                   msg.role === "user" 
-                    ? "bg-gradient-to-br from-mint to-teal-500 text-black rounded-tr-sm" 
+                    ? "bg-gradient-to-br from-mint to-teal-500 text-black rounded-tr-sm whitespace-pre-wrap" 
                     : "bg-white/5 border border-white/10 text-slate-200 rounded-tl-sm"
                 }`}
               >
-                {formatText(msg.content)}
+                {msg.role === "user" ? msg.content : <ChatMessage content={msg.content} />}
               </div>
 
               {msg.role === "assistant" && (msg.grounding_confidence != null || msg.sources?.length > 0) && (
@@ -541,31 +518,29 @@ export default function Chat() {
 
           {loading && (
              <div className="flex flex-col items-start space-y-2">
-                <div className="bg-white/5 border border-white/10 text-mint p-5 rounded-2xl rounded-tl-sm flex items-center gap-3">
-                  {!isJetsonMode && (
-                    <>
-                      <style>{`
-                        @keyframes pulse {
-                          0%, 100% { opacity: 1; }
-                          50% { opacity: 0.3; }
-                        }
-                        .pulse-dot {
-                          animation: pulse 1.4s infinite both;
-                        }
-                        .pulse-dot:nth-child(2) {
-                          animation-delay: 0.2s;
-                        }
-                        .pulse-dot:nth-child(3) {
-                          animation-delay: 0.4s;
-                        }
-                      `}</style>
-                      <div className="w-2 h-2 bg-mint rounded-full pulse-dot"></div>
-                      <div className="w-2 h-2 bg-mint rounded-full pulse-dot"></div>
-                      <div className="w-2 h-2 bg-mint rounded-full pulse-dot"></div>
-                    </>
+                <div className="flex items-center gap-3 p-4 rounded-lg bg-gray-800/50 border border-teal-900/30">
+                  
+                  {/* 3 pulsing dots */}
+                  {!isJetson && (
+                    <div className="flex gap-1">
+                      {[0,1,2].map(i => (
+                        <div key={i}
+                          className="w-2 h-2 rounded-full bg-teal-400"
+                          style={{
+                            animation: `pulse 1.4s ease-in-out infinite`,
+                            animationDelay: `${i*0.2}s`
+                          }}
+                        />
+                      ))}
+                    </div>
                   )}
-                  <span className="ml-2 text-sm text-slate-300">
-                    {thinkingMessages[thinkingIndex]} (Processing... {Math.floor(timerSeconds / 60)}:{(timerSeconds % 60).toString().padStart(2, '0')})
+                  
+                  {/* Rotating message + timer */}
+                  <span className="text-sm text-gray-300">
+                    {THINKING_MESSAGES[thinkingIndex]}
+                    <span className="text-gray-500 ml-2">
+                      (Processing... {formatTime(elapsed)})
+                    </span>
                   </span>
                 </div>
              </div>

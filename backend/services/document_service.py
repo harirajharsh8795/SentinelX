@@ -1,4 +1,6 @@
 import os
+import re
+import unicodedata
 from uuid import uuid4
 from typing import Dict, Any
 import asyncio
@@ -24,8 +26,16 @@ from services.task_service import set_tasks_from_maps
 from database.database import SessionLocal
 from database.models import Document
 from utils.pii_masking import mask_pii # Phase 12
-import re
-import unicodedata
+def normalize_text(text: str) -> str:
+    # NFC normalization
+    text = unicodedata.normalize('NFC', text)
+    # Multiple spaces (preserving newlines for layout/headings)
+    text = re.sub(r'[^\S\r\n]+', ' ', text)
+    # Soft hyphens remove
+    text = text.replace('\u00ad', '')
+    # Replacements
+    text = text.replace("भारतीय रज़वर् ब क", "भारतीय रिज़र्व बैंक")
+    return text.strip()
 
 def clean_extracted_text(text: str) -> str:
     """Phase 5: Enhanced OCR & Chunk Cleanup Pipeline."""
@@ -214,7 +224,7 @@ def ingest_file_from_path(
     if not regulator:
         regulator = detect_regulator(text, safe_name)
 
-    chunks = chunk_text(text)
+    chunks = chunk_text(normalize_text(text))
     if not chunks:
         raise ValueError("No indexable text extracted from document. PDF may be scanned/image-only.")
     event_bus.emit("system_info", f"Semantic chunking complete. Generated {len(chunks)} chunks.", doc_id=doc_id)
@@ -300,7 +310,7 @@ def ingest_document(file) -> Dict[str, Any]:
         raise ValueError("No extractable text or content found in uploaded PDF.")
 
     regulator = detect_regulator(text, safe_name)
-    chunks = chunk_text(text)
+    chunks = chunk_text(normalize_text(text))
     event_bus.emit("system_info", f"Semantic chunking complete. Generated {len(chunks)} chunks.", doc_id=doc_id)
     
     EventLogger.log_embedding_started(doc_id, safe_name, len(chunks))
@@ -380,7 +390,7 @@ def ingest_bytes(
     if not regulator:
         regulator = detect_regulator(text, safe_name)
 
-    chunks = chunk_text(text)
+    chunks = chunk_text(normalize_text(text))
     
     EventLogger.log_embedding_started(doc_id, safe_name, len(chunks))
     add_chunks(

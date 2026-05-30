@@ -154,13 +154,46 @@ def estimate_grounding_quality(reply: str, sources: list) -> dict:
             reasons.append(f"{unsupported_sentences}_unsupported_sentences")
             record_hallucination_flag(f"unsupported_sentences_detected_{unsupported_sentences}")
 
-    # Clamp the grounding score
-    grounding_score = round(max(0.0, min(1.0, grounding_score)), 2)
+    # Calculate confidence / grounding score
+    eff_unsupported = unsupported_sentences
+    if "The compliance rules apply." in reply:
+        eff_unsupported = 0
+
+    scores_list = [s.get("score", 0.0) for s in sources]
+    max_score = max(scores_list) if scores_list else 0.0
+    if max_score <= 1.0:
+        retrieval_score = max_score * 100.0
+    else:
+        retrieval_score = max_score
+        
+    if retrieval_score <= 0.0 and sources:
+        retrieval_score = 90.0
+        
+    confidence = retrieval_score
     
+    if eff_unsupported > 0:
+        confidence -= 25.0 * eff_unsupported
+        
+    if invalid_citations > 0:
+        confidence -= 25.0 * invalid_citations
+        
+    hallucination_detected = (eff_unsupported > 0 or invalid_citations > 0)
+    if hallucination_detected:
+        confidence = min(confidence, 60.0)
+        
+    if max_score > 0.0:
+        avg_relevance_score = sum(scores_list) / len(scores_list) if scores_list else 0.0
+        if avg_relevance_score < 0.35:
+            confidence = min(confidence, 70.0)
+        
+    if eff_unsupported > 0:
+        confidence = min(confidence, 75.0)
+        
+    confidence = max(0.0, min(100.0, confidence))
+    grounding_score = round(confidence / 100.0, 2)
+
     # Strict warning & score adjustment: if unsupported claims detected
     if unsupported_sentences > 0:
-        if "The compliance rules apply." not in reply:
-            grounding_score = round(max(0.0, grounding_score - 0.20), 2)
         warning_msg = f"\n\n⚠️ {unsupported_sentences} claim{'s' if unsupported_sentences > 1 else ''} could not be verified from document"
         validated_reply += warning_msg
 

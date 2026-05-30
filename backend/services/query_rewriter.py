@@ -28,14 +28,16 @@ DOMAIN_ACRONYMS = {
 
 def expand_domain_terms(query: str, regulator: Optional[str] = None, doc_text_has_aml: bool = False) -> str:
     """Expand abbreviations and add regulatory context for short queries to improve recall."""
+    import re
     q_lower = query.lower().strip()
     expansions = []
     for abbrev, expansion in DOMAIN_ACRONYMS.items():
         if abbrev in ["aml", "str", "ctr", "fiu", "fiu-ind"]:
-            if regulator == "SEBI" or (not doc_text_has_aml and abbrev not in q_lower):
+            has_abbrev_in_query = bool(re.search(r'\b' + re.escape(abbrev) + r'\b', q_lower))
+            if regulator == "SEBI" or (not doc_text_has_aml and not has_abbrev_in_query):
                 continue
-        # Check boundary to avoid sub-word matching (e.g. 'cdd' in 'cdd-checklist')
-        if abbrev in q_lower:
+        # Check boundary to avoid sub-word matching (e.g. 'cdd' in 'cdd-checklist', 'str' in 'restricted')
+        if re.search(r'\b' + re.escape(abbrev) + r'\b', q_lower):
             expansions.append(expansion)
             
     result = query

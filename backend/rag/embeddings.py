@@ -102,7 +102,7 @@ def simple_embedding(text: str, timeout: Optional[float] = None, is_document: bo
         _first_request_made = True
 
     processed_text = text.strip()
-    if "nomic" in OLLAMA_MODEL.lower() and not processed_text.startswith("search_query:") and not processed_text.startswith("search_document:"):
+    if "nomic" in OLLAMA_MODEL.lower() and not processed_text.lower().startswith("search_query:") and not processed_text.lower().startswith("search_document:"):
         if is_document:
             processed_text = f"search_document: {processed_text}"
         else:
@@ -160,7 +160,7 @@ def batch_embeddings(texts: List[str], batch_size: int = 32) -> List[List[float]
     processed_texts = []
     for t in texts:
         pt = t.strip() if t.strip() else "empty"
-        if "nomic" in OLLAMA_MODEL.lower() and not pt.startswith("search_query:") and not pt.startswith("search_document:"):
+        if "nomic" in OLLAMA_MODEL.lower() and not pt.lower().startswith("search_query:") and not pt.lower().startswith("search_document:"):
             pt = f"search_document: {pt}"
         processed_texts.append(pt)
 

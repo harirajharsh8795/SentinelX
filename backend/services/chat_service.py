@@ -99,13 +99,16 @@ _DOMAIN_EXPANSIONS = {
 
 def _expand_domain_terms(query: str, regulator: str = "RBI", doc_text_has_aml: bool = False) -> str:
     """Expand abbreviated regulatory terms into rich search phrases."""
+    import re
     q_lower = query.lower()
     expansions = []
     for abbrev, expansion in _DOMAIN_EXPANSIONS.items():
         if abbrev in ["aml", "str", "ctr", "fiu", "fiu-ind"]:
-            if regulator == "SEBI" or (not doc_text_has_aml and abbrev not in q_lower):
+            has_abbrev_in_query = bool(re.search(r'\b' + re.escape(abbrev) + r'\b', q_lower))
+            if regulator == "SEBI" or (not doc_text_has_aml and not has_abbrev_in_query):
                 continue
-        if abbrev in q_lower:
+        # Use exact word boundary matching to avoid sub-word matching (e.g., matching 'str' in 'restrictions')
+        if re.search(r'\b' + re.escape(abbrev) + r'\b', q_lower):
             expansions.append(expansion)
     if expansions:
         return query + " " + " ".join(expansions[:3])  # Cap at 3 expansions
@@ -165,16 +168,68 @@ Your goal is to answer the user's latest question with utmost accuracy based *st
 REGULATOR CONSTRAINTS ({regulator}):
 {regulator_instruction}
 
-CRITICAL RULES (Answer Grounding):
-1. Answer ONLY from the retrieved context. Never hallucinate or make up facts.
-2. NO-EVIDENCE FALLBACK: If the context does NOT contain direct evidence or information to answer the question, you MUST format your reply EXACTLY like this:
+STRICT RULES — NO EXCEPTIONS:
+
+1. ONLY use information explicitly 
+   written in the document context.
+
+2. NEVER use these phrases:
+   - "fines and penalties"
+   - "reputational damage"  
+   - "best practices"
+   - "ensure compliance"
+   - "it is recommended"
+   - "regulatory penalties"
+   Unless they appear WORD FOR WORD 
+   in the retrieved chunks.
+
+3. If a fact is NOT in chunks:
+   Write exactly: 
+   "[Not found in document]"
+   after that specific claim.
+
+4. For EVERY claim, mentally ask:
+   "Which exact chunk supports this?"
+   If no chunk → do NOT include it.
+
+5. Departments like "Legal Affairs 
+   Division", "Cross-border Operations"
+   — ONLY mention if document 
+   explicitly names them.
+   Otherwise write: 
+   "[Department not specified 
+   in document]"
+
+6. Source citations MUST include:
+   - Exact chapter/section number
+   - Exact regulation number
+   - Exact clause if available
+   NEVER generic "RBI (2023)" only.
+
+For EVERY claim you make, 
+cite the source like this:
+
+[Chapter X, Section Y.Z] or
+[Regulation X(Y)] or  
+[Clause X(Y)(Z)]
+
+Example:
+'REs must comply by Oct 1, 2023
+[Chapter II, Section II(i)]'
+
+NEVER write generic citations like
+'RBI (2023)' alone.
+If you cannot find exact section,
+write '[Section not identified]'
+
+NO-EVIDENCE FALLBACK: If the context does NOT contain direct evidence or information to answer the question, you MUST format your reply EXACTLY like this:
 ## Information Not Found
 The uploaded document does not explicitly specify [topic].
 **What the document does cover:**
 - [list what IS in the document context]
 **Suggestion:** Check [specific section/references] of the circular for related information.
 
-3. NUMERICAL REASONING: When user provides specific numbers (clients, amounts, dates), apply them directly to the regulatory tables found in context.
+NUMERICAL REASONING: When user provides specific numbers (clients, amounts, dates), apply them directly to the regulatory tables found in context.
    Example:
    User says '850 clients'
    Document says:
@@ -184,13 +239,13 @@ The uploaded document does not explicitly specify [topic].
    Therefore deposit = ₹5 lakh
    Always show your calculation step by step.
 
-4. COMPLIANCE OBLIGATION TABLES: When asked about compliance obligations, ALWAYS structure response as:
+COMPLIANCE OBLIGATION TABLES: When asked about compliance obligations, ALWAYS structure response as:
 | Obligation | Regulation | Deadline | Department | Risk if Delayed |
 |-----------|-----------|---------|-----------|----------------|
 | [specific] | Reg. X | [date] | [dept] | [consequence] |
 Extract this information ONLY from the document context. Do not guess deadlines or departments.
 
-5. CITE sources using the exact source number, e.g., "(Source 1)".
+CITE sources using the exact source number, e.g., "(Source 1)".
 """
 
     if category == "governance":
@@ -302,6 +357,22 @@ def expand_hinglish_query(message: str) -> str:
     return message
 
 
+def doc_has_aml_content(doc_id: str) -> bool:
+    if not doc_id:
+        return False
+    try:
+        from rag.retriever import get_collection
+        collection = get_collection(doc_id)
+        res = collection.get(where={"doc_id": doc_id}, limit=50)
+        for doc_text in res.get("documents", []):
+            text_lower = doc_text.lower()
+            if any(w in text_lower for w in ["aml", "money laundering", "fiu-ind", "suspicious transaction"]):
+                return True
+    except Exception:
+        pass
+    return False
+
+
 async def chat_with_document(doc_id: str, message: str) -> Dict[str, Any]:
     """
     Combines conversational memory, Query Rewriting, Question Classification, 
@@ -317,18 +388,7 @@ async def chat_with_document(doc_id: str, message: str) -> Dict[str, Any]:
     db.close()
 
     # Determine if document text has AML keywords dynamically
-    doc_text_has_aml = False
-    try:
-        from rag.retriever import get_collection
-        collection = get_collection(doc_id)
-        res = collection.get(where={"doc_id": doc_id}, limit=50)
-        for doc_text in res.get("documents", []):
-            text_lower = doc_text.lower()
-            if any(w in text_lower for w in ["aml", "money laundering", "fiu-ind", "suspicious transaction"]):
-                doc_text_has_aml = True
-                break
-    except Exception:
-        pass
+    doc_text_has_aml = doc_has_aml_content(doc_id)
 
     # 2. Get past chat history (Step 13: Chat Memory)
     chat_history = get_chat_history(doc_id)
@@ -352,6 +412,7 @@ async def chat_with_document(doc_id: str, message: str) -> Dict[str, Any]:
         text = chunk["text"]
         # Replace Devanagari text with [Hindi text] in the snippet for UI display
         snippet = text[:150]
+        snippet = snippet.replace("भारतीय रज़वर् ब क", "[Hindi text]")
         snippet = re.sub(r'[\u0900-\u097F]+', '[Hindi text]', snippet)
         snippet = re.sub(r'(\[Hindi text\]\s*)+', '[Hindi text]', snippet)
         
@@ -367,29 +428,25 @@ async def chat_with_document(doc_id: str, message: str) -> Dict[str, Any]:
         debug_chunks.append({"idx": idx+1, "section": section, "text_preview": text[:50]})
 
     # 5. Graceful No-evidence Penalties Fallback
-    is_penalty_query = any(w in message.lower() for w in ["penalty", "penalties", "fine", "fines", "punishment", "prosecution", "sanction"])
+    is_penalty_query = "penalt" in message.lower()
     if is_penalty_query:
         has_penalty_evidence = False
         for chunk in retrieved_chunks:
-            chunk_lower = chunk["text"].lower()
-            if any(w in chunk_lower for w in ["penalty", "penalties", "fine", "fines", "punish", "prosecution", "sanction"]):
+            if "penalt" in chunk["text"].lower():
                 has_penalty_evidence = True
                 break
         if not has_penalty_evidence:
-            doc_topics = []
-            for chunk in retrieved_chunks[:3]:
-                sec = chunk["metadata"].get("section_title", "General")
-                if sec not in doc_topics:
-                    doc_topics.append(sec)
-            doc_topics_list = "\n".join([f"- {topic}" for topic in doc_topics])
-            reply = f"""## Information Not Found
+            reply = """## Penalty Information Not Found
 
-The uploaded document does not explicitly specify penalties or fines.
+This document does not explicitly specify penalties for non-compliance.
 
-**What the document does cover:**
-{doc_topics_list}
+**What this document does specify:**
+- Compliance timelines
+- Governance obligations  
+- Outsourcing requirements
 
-**Suggestion:** Check the enforcement or general compliance section of the circular for related information."""
+For penalty clauses, refer to:
+The parent RBI Act or specific enforcement circulars."""
             append_to_memory(doc_id, "user", message)
             append_to_memory(doc_id, "assistant", reply)
             return {
@@ -405,7 +462,7 @@ The uploaded document does not explicitly specify penalties or fines.
                     "reasoning_steps": [
                         "1. Query classified as penalties",
                         "2. No evidence of penalties found in retrieved chunks",
-                        "3. Returned graceful Information Not Found response"
+                        "3. Returned graceful Penalty Information Not Found response"
                     ],
                     "hallucination_risk": "low"
                 }

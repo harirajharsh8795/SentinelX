@@ -33,7 +33,7 @@ def _is_heading(line: str) -> bool:
         return True
     if stripped.endswith(":") and len(stripped) <= 120:
         return True
-    if re.match(r"^(\d+(?:\.\d+)*)\s+[A-Z][A-Za-z0-9 ,:/&()\-]{2,}$", stripped):
+    if re.match(r"^(\d+(?:\.\d+)*)\s+[A-Z][A-Za-z0-9 ,:/&()\-]{2,}$", stripped) and len(stripped) <= 120:
         return True
     if len(stripped) <= 120 and stripped == stripped.upper() and any(ch.isalpha() for ch in stripped):
         return True
@@ -183,4 +183,4 @@ def chunk_text(text: str, chunk_size: int = 2000, overlap: int = 200) -> List[Di
     if current_text.strip():
         chunks.append({"text": current_text.strip(), "section_title": current_heading})
 
-    return [chunk for chunk in chunks if chunk["text"]]
+    return [chunk for chunk in chunks if len(chunk["text"].strip()) >= min(100, chunk_size // 2)]
