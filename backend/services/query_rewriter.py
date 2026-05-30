@@ -1,5 +1,5 @@
 import json
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from services.gemini_service import generate_text
 from utils.logger import get_logger
 
@@ -26,11 +26,14 @@ DOMAIN_ACRONYMS = {
     "pii": "Personally Identifiable Information PII data privacy protection masking data security",
 }
 
-def expand_domain_terms(query: str) -> str:
+def expand_domain_terms(query: str, regulator: Optional[str] = None, doc_text_has_aml: bool = False) -> str:
     """Expand abbreviations and add regulatory context for short queries to improve recall."""
     q_lower = query.lower().strip()
     expansions = []
     for abbrev, expansion in DOMAIN_ACRONYMS.items():
+        if abbrev in ["aml", "str", "ctr", "fiu", "fiu-ind"]:
+            if regulator == "SEBI" or (not doc_text_has_aml and abbrev not in q_lower):
+                continue
         # Check boundary to avoid sub-word matching (e.g. 'cdd' in 'cdd-checklist')
         if abbrev in q_lower:
             expansions.append(expansion)

@@ -144,7 +144,56 @@ async def chat_api(request: ChatRequest, current_user = Depends(get_current_acti
     if not request.message.strip():
         raise HTTPException(status_code=400, detail="message cannot be empty")
     
-    result = await chat_with_document(request.document_id, request.message)
+    import asyncio
+    try:
+        result = await asyncio.wait_for(
+            chat_with_document(request.document_id, request.message),
+            timeout=60.0
+        )
+    except asyncio.TimeoutError:
+        from database.database import SessionLocal
+        from database.models import Document
+        db = SessionLocal()
+        doc = db.query(Document).filter(Document.id == request.document_id).first()
+        regulator = doc.regulator if (doc and doc.regulator) else "RBI"
+        db.close()
+        
+        from rag.hybrid_search import hybrid_search_and_rerank
+        try:
+            chunks = hybrid_search_and_rerank(request.message, final_k=3, doc_id=request.document_id, regulator=regulator)
+        except Exception:
+            chunks = []
+            
+        summary_bullets = []
+        sources = []
+        import re
+        for idx, chunk in enumerate(chunks[:3]):
+            section = chunk["metadata"].get("section_title", "General")
+            snippet = chunk["text"][:200].strip()
+            snippet = re.sub(r'\s+', ' ', snippet)
+            snippet = re.sub(r'[\u0900-\u097F]+', '[Hindi text]', snippet)
+            snippet = re.sub(r'(\[Hindi text\]\s*)+', '[Hindi text]', snippet)
+            summary_bullets.append(f"- **{section}**: {snippet}...")
+            sources.append({
+                "section_title": section,
+                "snippet": chunk["text"][:150] + "...",
+                "score": chunk.get("mmr_score", chunk.get("rerank_score", 0))
+            })
+        summary_text = "\n".join(summary_bullets)
+        
+        result = {
+            "reply": f"""## Partial Analysis
+Based on retrieved context:
+
+{summary_text}
+
+⚠️ Full analysis timed out. Try a more specific query.""",
+            "sources": sources,
+            "grounded": True,
+            "grounding_confidence": 0.5,
+            "debug": {"error": "TimeoutError"}
+        }
+        
     return result
 
 @router.get("/knowledge-graph/{document_id}", response_model=KnowledgeGraphResponse)

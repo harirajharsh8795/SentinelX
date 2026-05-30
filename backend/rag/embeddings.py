@@ -77,7 +77,7 @@ def warmup_embeddings():
 # Execute warmup on module load (skipped in tests)
 warmup_embeddings()
 
-def simple_embedding(text: str, timeout: Optional[float] = None) -> List[float]:
+def simple_embedding(text: str, timeout: Optional[float] = None, is_document: bool = False) -> List[float]:
     """
     Generate vector embeddings locally via Ollama.
     Throws a RuntimeError if Ollama is unreachable or errors out.
@@ -102,8 +102,11 @@ def simple_embedding(text: str, timeout: Optional[float] = None) -> List[float]:
         _first_request_made = True
 
     processed_text = text.strip()
-    if "nomic" in OLLAMA_MODEL and not processed_text.startswith("search_query:") and not processed_text.startswith("search_document:"):
-        processed_text = f"search_query: {processed_text}"
+    if "nomic" in OLLAMA_MODEL.lower() and not processed_text.startswith("search_query:") and not processed_text.startswith("search_document:"):
+        if is_document:
+            processed_text = f"search_document: {processed_text}"
+        else:
+            processed_text = f"search_query: {processed_text}"
 
     try:
         payload = {
@@ -130,7 +133,7 @@ def simple_embedding(text: str, timeout: Optional[float] = None) -> List[float]:
         raise RuntimeError(f"Local embedding generation failed: {str(e)}") from e
 
 
-async def simple_embedding_async(text: str, timeout: Optional[float] = None) -> List[float]:
+async def simple_embedding_async(text: str, timeout: Optional[float] = None, is_document: bool = False) -> List[float]:
     """
     Asynchronously generate vector embeddings locally via Ollama by offloading to a thread.
     """
@@ -140,7 +143,7 @@ async def simple_embedding_async(text: str, timeout: Optional[float] = None) -> 
     if timeout is None:
         timeout = float(settings.ollama_embed_timeout)
         
-    return await asyncio.to_thread(simple_embedding, text, timeout)
+    return await asyncio.to_thread(simple_embedding, text, timeout, is_document)
 
 
 OLLAMA_BATCH_EMBED_URL = "http://localhost:11434/api/embed"
@@ -157,7 +160,7 @@ def batch_embeddings(texts: List[str], batch_size: int = 32) -> List[List[float]
     processed_texts = []
     for t in texts:
         pt = t.strip() if t.strip() else "empty"
-        if "nomic" in OLLAMA_MODEL and not pt.startswith("search_query:") and not pt.startswith("search_document:"):
+        if "nomic" in OLLAMA_MODEL.lower() and not pt.startswith("search_query:") and not pt.startswith("search_document:"):
             pt = f"search_document: {pt}"
         processed_texts.append(pt)
 

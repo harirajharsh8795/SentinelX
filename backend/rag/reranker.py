@@ -59,7 +59,7 @@ def rerank_chunks(query: str, chunks: List[Dict[str, Any]], top_k: int = 3, lamb
         if reg_hits:
             reg_boost = min(0.15, len(reg_hits) * 0.03)  # Cap at 0.15
 
-        chunk["base_relevance"] = (vector_score * 0.6) + (jaccard_rel * 0.25) + reg_boost
+        chunk["base_relevance"] = (vector_score * 0.7) + (jaccard_rel * 0.3) + reg_boost
 
     # 2. Apply MMR (Maximal Marginal Relevance)
     # Select the first chunk directly based on highest relevance
@@ -96,7 +96,7 @@ def rerank_chunks(query: str, chunks: List[Dict[str, Any]], top_k: int = 3, lamb
     # Apply score threshold 0.3 filter, keeping at least 1 chunk to prevent empty context
     filtered_selected = []
     for i, c in enumerate(selected):
-        if c.get("base_relevance", 0.0) >= 0.3 or i == 0:
+        if c.get("base_relevance", 0.0) >= 0.25 or i == 0:
             filtered_selected.append(c)
             
     return filtered_selected

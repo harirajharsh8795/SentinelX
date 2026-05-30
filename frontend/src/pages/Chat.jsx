@@ -56,6 +56,9 @@ export default function Chat() {
   const [loading, setLoading] = useState(false);
   const [inspectSource, setInspectSource] = useState(null);
   const endRef = useRef(null);
+  const [thinkingIndex, setThinkingIndex] = useState(0);
+  const [timerSeconds, setTimerSeconds] = useState(0);
+  const [showTimeoutWarning, setShowTimeoutWarning] = useState(false);
 
   const [recording, setRecording] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
@@ -336,12 +339,106 @@ export default function Chat() {
     }
   };
 
+  const thinkingMessages = [
+    "Retrieving relevant clauses...",
+    "Cross-referencing regulations...",
+    "Analyzing compliance gaps...",
+    "Synthesizing intelligence...",
+    "Validating against document...",
+    "Generating structured response..."
+  ];
+
+  const isJetsonMode = import.meta.env.VITE_JETSON_MODE === "true";
+
+  useEffect(() => {
+    let timerInterval;
+    let msgInterval;
+    let timeoutId;
+    if (loading) {
+      setTimerSeconds(0);
+      setThinkingIndex(0);
+      setShowTimeoutWarning(false);
+      timerInterval = setInterval(() => {
+        setTimerSeconds(prev => prev + 1);
+      }, 1000);
+      msgInterval = setInterval(() => {
+        setThinkingIndex(prev => (prev + 1) % thinkingMessages.length);
+      }, 3000);
+      timeoutId = setTimeout(() => {
+        setShowTimeoutWarning(true);
+        safeSetLoading(false);
+        safeSetMessages(prev => {
+          if (prev.length === 0) return prev;
+          const newMessages = [...prev];
+          const lastIdx = newMessages.length - 1;
+          newMessages[lastIdx] = {
+            ...newMessages[lastIdx],
+            content: "⏱️ Query is complex for current hardware. Showing partial results...",
+            sources: [],
+            debug: { reasoning_steps: ["Query timed out after 90 seconds."] }
+          };
+          return newMessages;
+        });
+        if (wsRef.current) {
+          wsRef.current.intentionalClose = true;
+          wsRef.current.close();
+        }
+      }, 90000);
+    } else {
+      setTimerSeconds(0);
+      setThinkingIndex(0);
+    }
+    return () => {
+      clearInterval(timerInterval);
+      clearInterval(msgInterval);
+      clearTimeout(timeoutId);
+    };
+  }, [loading]);
+
+  const simplifyGraphQuery = (query) => {
+    if (!query) return query;
+    const q = query.trim();
+    if (q.startsWith("Analyze regulatory details") || q.startsWith("Analyze the regulatory details")) {
+      let entity = "";
+      const quoteMatch = q.match(/"([^"]+)"/);
+      if (quoteMatch) {
+        entity = quoteMatch[1];
+      } else {
+        const lastPartMatch = q.match(/associated with (?:the )?(\w+ )?(.+)$/i);
+        if (lastPartMatch) {
+          entity = lastPartMatch[2].replace(/\.+$/, "").trim();
+        }
+      }
+      
+      if (entity) {
+        const lowerQ = q.toLowerCase();
+        if (lowerQ.includes("penalty") || lowerQ.includes("penalties")) {
+          return `What are the penalties for ${entity}?`;
+        } else if (lowerQ.includes("risk") || lowerQ.includes("mitigation")) {
+          return `What are the risks associated with ${entity}?`;
+        } else if (lowerQ.includes("registration") || entity.toLowerCase().includes("registration")) {
+          let cleanEntity = entity;
+          if (entity.toLowerCase().startsWith("registration of ")) {
+            cleanEntity = entity.substring(16);
+          }
+          return `What are the registration requirements for ${cleanEntity}?`;
+        } else if (lowerQ.includes("timeline") || lowerQ.includes("deadline")) {
+          return `What are the compliance timelines for ${entity}?`;
+        } else {
+          return `What are the requirements for ${entity}?`;
+        }
+      }
+    }
+    return query;
+  };
+
   useEffect(() => {
     const pendingQuery = localStorage.getItem("pending_copilot_query");
     if (pendingQuery && docId) {
       localStorage.removeItem("pending_copilot_query");
+      const simplified = simplifyGraphQuery(pendingQuery);
       safeSetInput("");
-      sendQuery(pendingQuery);
+      sendQuery(simplified);
     }
   }, [docId]);
 
@@ -444,18 +541,55 @@ export default function Chat() {
 
           {loading && (
              <div className="flex flex-col items-start space-y-2">
-               <div className="bg-white/5 border border-white/10 text-mint p-5 rounded-2xl rounded-tl-sm animate-pulse flex items-center gap-3">
-                 <div className="w-2 h-2 bg-mint rounded-full animate-bounce"></div>
-                 <div className="w-2 h-2 bg-mint rounded-full animate-bounce delay-75"></div>
-                 <div className="w-2 h-2 bg-mint rounded-full animate-bounce delay-150"></div>
-                 <span className="ml-2 text-sm text-slate-300">Analyzing clauses & reranking...</span>
-               </div>
+                <div className="bg-white/5 border border-white/10 text-mint p-5 rounded-2xl rounded-tl-sm flex items-center gap-3">
+                  {!isJetsonMode && (
+                    <>
+                      <style>{`
+                        @keyframes pulse {
+                          0%, 100% { opacity: 1; }
+                          50% { opacity: 0.3; }
+                        }
+                        .pulse-dot {
+                          animation: pulse 1.4s infinite both;
+                        }
+                        .pulse-dot:nth-child(2) {
+                          animation-delay: 0.2s;
+                        }
+                        .pulse-dot:nth-child(3) {
+                          animation-delay: 0.4s;
+                        }
+                      `}</style>
+                      <div className="w-2 h-2 bg-mint rounded-full pulse-dot"></div>
+                      <div className="w-2 h-2 bg-mint rounded-full pulse-dot"></div>
+                      <div className="w-2 h-2 bg-mint rounded-full pulse-dot"></div>
+                    </>
+                  )}
+                  <span className="ml-2 text-sm text-slate-300">
+                    {thinkingMessages[thinkingIndex]} (Processing... {Math.floor(timerSeconds / 60)}:{(timerSeconds % 60).toString().padStart(2, '0')})
+                  </span>
+                </div>
              </div>
           )}
           <div ref={endRef} />
         </div>
 
         {/* Suggested Follow-ups */}
+        {showTimeoutWarning && (
+          <div className="px-8 pb-3 text-yellow-400 text-xs flex items-center gap-3">
+            <span>⏱️ Query is complex for current hardware. Showing partial results...</span>
+            <button 
+              onClick={() => {
+                const lastUserMsg = [...messages].reverse().find(m => m.role === "user");
+                if (lastUserMsg) {
+                  sendQuery(lastUserMsg.content);
+                }
+              }}
+              className="px-3 py-1 bg-yellow-500/20 hover:bg-yellow-500/30 border border-yellow-500/40 rounded transition-colors text-xs font-bold"
+            >
+              Retry
+            </button>
+          </div>
+        )}
         {!loading && messages.length > 1 && messages[messages.length-1].role === "assistant" && (
           <div className="px-8 pb-3 flex gap-2 flex-wrap">
             {["What are the exact penalties?", "Summarize the audit timelines", "Show me governance requirements"].map((suggestion, i) => (

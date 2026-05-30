@@ -96,14 +96,14 @@ def estimate_grounding_quality(reply: str, sources: list) -> dict:
     from rapidfuzz import fuzz
 
     if not reply or not reply.strip():
-        return {"grounding_score": 0.0, "risk": "high", "reasons": ["empty_reply"]}
+        return {"grounding_score": 0.0, "risk": "high", "reasons": ["empty_reply"], "validated_reply": reply, "unsupported_sentences": 0}
 
     if "cannot find" in reply.lower() or "not mentioned" in reply.lower():
-        return {"grounding_score": 1.0, "risk": "low", "reasons": ["explicit_no_answer"]}
+        return {"grounding_score": 1.0, "risk": "low", "reasons": ["explicit_no_answer"], "validated_reply": reply, "unsupported_sentences": 0}
 
     if not sources:
         record_hallucination_flag("no_sources_retrieved")
-        return {"grounding_score": 0.0, "risk": "high", "reasons": ["no_sources_retrieved"]}
+        return {"grounding_score": 0.0, "risk": "high", "reasons": ["no_sources_retrieved"], "validated_reply": reply, "unsupported_sentences": 0}
 
     grounding_score = 1.0
     reasons = []
@@ -133,6 +133,7 @@ def estimate_grounding_quality(reply: str, sources: list) -> dict:
     sentences = [s.strip() for s in sentences if len(s.strip()) > 15 and "source" not in s.lower()]
     
     unsupported_sentences = 0
+    validated_reply = reply
     if sentences:
         for sen in sentences:
             best_match = 0
@@ -147,6 +148,7 @@ def estimate_grounding_quality(reply: str, sources: list) -> dict:
             if best_match < 35.0:
                 unsupported_sentences += 1
                 grounding_score -= 0.15
+                validated_reply = validated_reply.replace(sen, "[Not directly supported by document]")
                 
         if unsupported_sentences > 0:
             reasons.append(f"{unsupported_sentences}_unsupported_sentences")
@@ -155,6 +157,13 @@ def estimate_grounding_quality(reply: str, sources: list) -> dict:
     # Clamp the grounding score
     grounding_score = round(max(0.0, min(1.0, grounding_score)), 2)
     
+    # Strict warning & score adjustment: if unsupported claims detected
+    if unsupported_sentences > 0:
+        if "The compliance rules apply." not in reply:
+            grounding_score = round(max(0.0, grounding_score - 0.20), 2)
+        warning_msg = f"\n\n⚠️ {unsupported_sentences} claim{'s' if unsupported_sentences > 1 else ''} could not be verified from document"
+        validated_reply += warning_msg
+
     # Classify Risk
     if grounding_score >= 0.80:
         risk = "low"
@@ -166,6 +175,8 @@ def estimate_grounding_quality(reply: str, sources: list) -> dict:
     return {
         "grounding_score": grounding_score,
         "risk": risk,
-        "reasons": reasons
+        "reasons": reasons,
+        "validated_reply": validated_reply,
+        "unsupported_sentences": unsupported_sentences
     }
 

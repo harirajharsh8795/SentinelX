@@ -38,8 +38,23 @@ def hybrid_search_and_rerank(
     from services.query_rewriter import expand_domain_terms
     from rag.reranker import rerank_chunks
     
+    # Resolve doc_text_has_aml dynamically
+    doc_text_has_aml = False
+    if doc_id and not isinstance(doc_id, list):
+        try:
+            from rag.retriever import get_collection
+            collection = get_collection(doc_id)
+            res = collection.get(where={"doc_id": doc_id}, limit=50)
+            for doc_text in res.get("documents", []):
+                text_lower = doc_text.lower()
+                if "aml" in text_lower or "money laundering" in text_lower or "fiu-ind" in text_lower or "suspicious transaction" in text_lower:
+                    doc_text_has_aml = True
+                    break
+        except Exception:
+            pass
+
     # 1. Lightweight domain-aware expansion (NO LLM calls — fast)
-    expanded_query = expand_domain_terms(query)
+    expanded_query = expand_domain_terms(query, regulator=regulator, doc_text_has_aml=doc_text_has_aml)
  
     # 2. Gather candidates from original + expanded queries
     candidates = []
@@ -49,7 +64,7 @@ def hybrid_search_and_rerank(
     query_targets = list(set([query, expanded_query]))
     
     for q in query_targets:
-        results = search_similar(q, top_k=10, doc_id=doc_id, regulator=regulator)
+        results = search_similar(q, top_k=12, doc_id=doc_id, regulator=regulator)
         for r in results:
             meta = r.get("metadata", {})
             # Construct a unique key for deduplication

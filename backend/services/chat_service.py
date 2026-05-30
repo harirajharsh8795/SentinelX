@@ -25,7 +25,7 @@ def get_chat_history(doc_id: str) -> str:
         
     return "\n".join(formatted)
 
-async def rewrite_query(original_query: str, chat_history: str) -> str:
+async def rewrite_query(original_query: str, chat_history: str, regulator: str = "RBI", doc_text_has_aml: bool = False) -> str:
     """
     Semantic Query Rewriting Engine (Phase 1):
     1. Resolves pronouns using conversation history.
@@ -33,10 +33,18 @@ async def rewrite_query(original_query: str, chat_history: str) -> str:
     3. Adds compliance intent keywords (timelines, penalties, audit obligations).
     """
     # Even without history, expand domain terms for better retrieval
-    expanded = _expand_domain_terms(original_query)
+    expanded = _expand_domain_terms(original_query, regulator=regulator, doc_text_has_aml=doc_text_has_aml)
 
     if "No previous conversation" in chat_history:
         return expanded
+
+    abbrev_rules = "V-CIP → Video-based Customer Identification Process, CDD → Customer Due Diligence, VAPT → Vulnerability Assessment and Penetration Testing, MFA → Multi-Factor Authentication, CISO → Chief Information Security Officer."
+    if regulator != "SEBI" and doc_text_has_aml:
+        abbrev_rules += " STR → Suspicious Transaction Report, CTR → Cash Transaction Report, FIU-IND → Financial Intelligence Unit India."
+
+    negative_rules = ""
+    if regulator == "SEBI" or not doc_text_has_aml:
+        negative_rules = "5. Do NOT expand or inject AML/STR/FIU-IND or money laundering terms for this query."
 
     prompt = f"""You are a regulatory compliance search query optimizer for Indian banking.
 
@@ -44,9 +52,10 @@ TASK: Rewrite the user's query into a rich, standalone search query.
 
 RULES:
 1. Resolve all pronouns ("it", "this", "that") using conversation history.
-2. Expand abbreviations: V-CIP → Video-based Customer Identification Process, CDD → Customer Due Diligence, STR → Suspicious Transaction Report, CTR → Cash Transaction Report, FIU-IND → Financial Intelligence Unit India, VAPT → Vulnerability Assessment and Penetration Testing, MFA → Multi-Factor Authentication, CISO → Chief Information Security Officer.
+2. Expand abbreviations: {abbrev_rules}
 3. Add compliance intent keywords where relevant (e.g., timelines, deadlines, penalties, audit requirements, reporting obligations).
 4. Keep the query under 120 words. Return ONLY the rewritten query text, nothing else.
+{negative_rules}
 
 --- PAST CONVERSATION HISTORY ---
 {chat_history}
@@ -88,11 +97,14 @@ _DOMAIN_EXPANSIONS = {
 }
 
 
-def _expand_domain_terms(query: str) -> str:
+def _expand_domain_terms(query: str, regulator: str = "RBI", doc_text_has_aml: bool = False) -> str:
     """Expand abbreviated regulatory terms into rich search phrases."""
     q_lower = query.lower()
     expansions = []
     for abbrev, expansion in _DOMAIN_EXPANSIONS.items():
+        if abbrev in ["aml", "str", "ctr", "fiu", "fiu-ind"]:
+            if regulator == "SEBI" or (not doc_text_has_aml and abbrev not in q_lower):
+                continue
         if abbrev in q_lower:
             expansions.append(expansion)
     if expansions:
@@ -106,13 +118,13 @@ def append_to_memory(doc_id: str, role: str, content: str):
         db.add(msg)
         db.commit()
 
-def classify_question(query: str) -> str:
+def classify_question(query: str, doc_text_has_aml: bool = False) -> str:
     """
     Question Classification:
     Categorizes the query into one of 9 distinct intents for targeted compliance prompting.
     """
     q = query.lower().strip()
-    if any(w in q for w in ["governance", "board", "director", "management", "committee", "ciso", "roles", "responsibilities"]):
+    if any(w in q for w in ["governance", "board", "director", "management", "committee", "ciso", "roles", "responsibilities", "registration", "compliance"]):
         return "governance"
     if any(w in q for w in ["vendor", "outsourcing", "third-party", "supplier", "partner", "procurement", "sla"]):
         return "vendor_risk"
@@ -121,7 +133,8 @@ def classify_question(query: str) -> str:
     if any(w in q for w in ["penalty", "punishment", "fine", "violation", "non-compliance", "lawsuit", "prosecution", "sanction"]):
         return "penalties"
     if any(w in q for w in ["aml", "anti-money laundering", "money laundering", "transaction monitoring", "terrorist financing"]):
-        return "aml"
+        if doc_text_has_aml:
+            return "aml"
     if any(w in q for w in ["kyc", "know your customer", "onboarding", "cdd", "due diligence", "identity", "verification"]):
         return "kyc"
     if any(w in q for w in ["cyber", "security", "hack", "breach", "network", "firewall", "access", "password", "mfa", "encryption", "vapt", "threat", "incident"]):
@@ -153,9 +166,31 @@ REGULATOR CONSTRAINTS ({regulator}):
 {regulator_instruction}
 
 CRITICAL RULES (Answer Grounding):
-1. Answer ONLY from the retrieved context. Never hallucinate.
-2. If the context does NOT contain the answer, explicitly state: "According to the document, I cannot find information regarding this."
-3. CITE sources using the exact source number, e.g., "(Source 1)".
+1. Answer ONLY from the retrieved context. Never hallucinate or make up facts.
+2. NO-EVIDENCE FALLBACK: If the context does NOT contain direct evidence or information to answer the question, you MUST format your reply EXACTLY like this:
+## Information Not Found
+The uploaded document does not explicitly specify [topic].
+**What the document does cover:**
+- [list what IS in the document context]
+**Suggestion:** Check [specific section/references] of the circular for related information.
+
+3. NUMERICAL REASONING: When user provides specific numbers (clients, amounts, dates), apply them directly to the regulatory tables found in context.
+   Example:
+   User says '850 clients'
+   Document says:
+   '301-1000 clients = ₹5 lakh'
+   You MUST calculate:
+   850 falls in 301-1000 bracket
+   Therefore deposit = ₹5 lakh
+   Always show your calculation step by step.
+
+4. COMPLIANCE OBLIGATION TABLES: When asked about compliance obligations, ALWAYS structure response as:
+| Obligation | Regulation | Deadline | Department | Risk if Delayed |
+|-----------|-----------|---------|-----------|----------------|
+| [specific] | Reg. X | [date] | [dept] | [consequence] |
+Extract this information ONLY from the document context. Do not guess deadlines or departments.
+
+5. CITE sources using the exact source number, e.g., "(Source 1)".
 """
 
     if category == "governance":
@@ -281,37 +316,102 @@ async def chat_with_document(doc_id: str, message: str) -> Dict[str, Any]:
     regulator = doc.regulator if (doc and doc.regulator) else "RBI"
     db.close()
 
+    # Determine if document text has AML keywords dynamically
+    doc_text_has_aml = False
+    try:
+        from rag.retriever import get_collection
+        collection = get_collection(doc_id)
+        res = collection.get(where={"doc_id": doc_id}, limit=50)
+        for doc_text in res.get("documents", []):
+            text_lower = doc_text.lower()
+            if any(w in text_lower for w in ["aml", "money laundering", "fiu-ind", "suspicious transaction"]):
+                doc_text_has_aml = True
+                break
+    except Exception:
+        pass
+
     # 2. Get past chat history (Step 13: Chat Memory)
     chat_history = get_chat_history(doc_id)
     
     # 3. Semantic Query Rewriting (Step 6)
-    standalone_query = await rewrite_query(expanded_message, chat_history)
+    standalone_query = await rewrite_query(expanded_message, chat_history, regulator=regulator, doc_text_has_aml=doc_text_has_aml)
 
     # Security: Sanitize user message before it enters any prompt
     safe_message = sanitize_user_query(message)
     
     # 4. Retrieve chunks with MMR enabled + strict regulator isolation (Phase 3)
-    retrieved_chunks = await asyncio.to_thread(hybrid_search_and_rerank, query=standalone_query, final_k=6, doc_id=doc_id, regulator=regulator)
+    retrieved_chunks = await asyncio.to_thread(hybrid_search_and_rerank, query=standalone_query, final_k=8, doc_id=doc_id, regulator=regulator)
     
     context_text = ""
     sources = []
     debug_chunks = []
     
+    import re
     for idx, chunk in enumerate(retrieved_chunks):
         section = chunk["metadata"].get("section_title", "General")
         text = chunk["text"]
+        # Replace Devanagari text with [Hindi text] in the snippet for UI display
+        snippet = text[:150]
+        snippet = re.sub(r'[\u0900-\u097F]+', '[Hindi text]', snippet)
+        snippet = re.sub(r'(\[Hindi text\]\s*)+', '[Hindi text]', snippet)
+        
         # Security: Sanitize each retrieved chunk before prompt injection
         text = sanitize_document_text(text, max_chars=8000, source_label=f"chat_chunk_{idx}")
         context_text += f"---\n[Source {idx+1}: {section}]\n{text}\n"
         
         sources.append({
             "section_title": section,
-            "snippet": text[:150] + "...",
+            "snippet": snippet.strip() + "...",
             "score": chunk.get("mmr_score", chunk.get("rerank_score", 0))
         })
         debug_chunks.append({"idx": idx+1, "section": section, "text_preview": text[:50]})
 
-    # 5. Filter empty context / Prevent Unrelated Outputs (Step 10: Answer Grounding Validation)
+    # 5. Graceful No-evidence Penalties Fallback
+    is_penalty_query = any(w in message.lower() for w in ["penalty", "penalties", "fine", "fines", "punishment", "prosecution", "sanction"])
+    if is_penalty_query:
+        has_penalty_evidence = False
+        for chunk in retrieved_chunks:
+            chunk_lower = chunk["text"].lower()
+            if any(w in chunk_lower for w in ["penalty", "penalties", "fine", "fines", "punish", "prosecution", "sanction"]):
+                has_penalty_evidence = True
+                break
+        if not has_penalty_evidence:
+            doc_topics = []
+            for chunk in retrieved_chunks[:3]:
+                sec = chunk["metadata"].get("section_title", "General")
+                if sec not in doc_topics:
+                    doc_topics.append(sec)
+            doc_topics_list = "\n".join([f"- {topic}" for topic in doc_topics])
+            reply = f"""## Information Not Found
+
+The uploaded document does not explicitly specify penalties or fines.
+
+**What the document does cover:**
+{doc_topics_list}
+
+**Suggestion:** Check the enforcement or general compliance section of the circular for related information."""
+            append_to_memory(doc_id, "user", message)
+            append_to_memory(doc_id, "assistant", reply)
+            return {
+                "reply": reply,
+                "sources": sources,
+                "grounded": True,
+                "grounding_confidence": 1.0,
+                "debug": {
+                    "category": "penalties",
+                    "standalone_query": standalone_query,
+                    "chunks_used": debug_chunks,
+                    "retrieval_count": len(retrieved_chunks),
+                    "reasoning_steps": [
+                        "1. Query classified as penalties",
+                        "2. No evidence of penalties found in retrieved chunks",
+                        "3. Returned graceful Information Not Found response"
+                    ],
+                    "hallucination_risk": "low"
+                }
+            }
+
+    # 6. Filter empty context / Prevent Unrelated Outputs (Step 10: Answer Grounding Validation)
     if not retrieved_chunks:
         reply = "I couldn't find relevant information in the document to answer your question."
         append_to_memory(doc_id, "user", message)
@@ -324,21 +424,37 @@ async def chat_with_document(doc_id: str, message: str) -> Dict[str, Any]:
             "debug": {"query": standalone_query, "chunks_found": 0, "hallucination_risk": "high"},
         }
 
-    # 6. Question Classification & Dynamic Prompts (Steps 7, 8, 11)
-    category = classify_question(standalone_query)
+    # 7. Question Classification & Dynamic Prompts (Steps 7, 8, 11)
+    category = classify_question(standalone_query, doc_text_has_aml=doc_text_has_aml)
     prompt = build_dynamic_prompt(category, chat_history, context_text, standalone_query, safe_message, regulator)
 
-    # 7. Generate Answer
+    # 8. Generate Answer with 45s hard timeout
     from services.observability_service import TraceContext, estimate_grounding_quality
     try:
         with TraceContext("chat.generate", {"doc_id": doc_id, "category": category}):
-            reply = await generate_text_async(prompt, timeout=45)
+            reply = await generate_text_async(prompt, timeout=45.0)
     except Exception as e:
-        reply = f"Error generating text: {str(e)}"
+        logger.warning(f"Failed to generate text or timed out after 45s: {e}. Generating partial analysis fallback.")
+        summary_bullets = []
+        for idx, chunk in enumerate(retrieved_chunks[:3]):
+            section = chunk["metadata"].get("section_title", "General")
+            snippet = chunk["text"][:200].strip()
+            snippet = re.sub(r'\s+', ' ', snippet)
+            snippet = re.sub(r'[\u0900-\u097F]+', '[Hindi text]', snippet)
+            snippet = re.sub(r'(\[Hindi text\]\s*)+', '[Hindi text]', snippet)
+            summary_bullets.append(f"- **{section}**: {snippet}...")
+        summary_text = "\n".join(summary_bullets)
+        reply = f"""## Partial Analysis
+Based on retrieved context:
+
+{summary_text}
+
+⚠️ Full analysis timed out. Try a more specific query."""
 
     quality = estimate_grounding_quality(reply, sources)
+    reply = quality.get("validated_reply", reply)
     
-    # 8. Append to memory
+    # 9. Append to memory
     append_to_memory(doc_id, "user", message)
     append_to_memory(doc_id, "assistant", reply)
     

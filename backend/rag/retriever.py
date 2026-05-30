@@ -84,10 +84,9 @@ def add_chunks(
                     
         except Exception as e:
             logger.warning(f"Batch embedding failed for chunks {batch_start}-{batch_end}: {e}. Falling back to individual embedding.")
-            # Fallback: process failed batch chunks one by one
             for j, c in enumerate(batch_chunks):
                 try:
-                    emb = simple_embedding(c["text"], timeout=45.0)
+                    emb = simple_embedding(c["text"], timeout=45.0, is_document=True)
                     if emb:
                         documents.append(c["text"])
                         embeddings.append(emb)
@@ -165,7 +164,7 @@ def _build_where(
 
 def search_similar(
     query: str,
-    top_k: int = 6,
+    top_k: int = 8,
     doc_id: Optional[Union[str, List[str]]] = None,
     regulator: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
@@ -180,7 +179,7 @@ def search_similar(
             else:
                 doc_id = "default_collection"
 
-    query_embedding = simple_embedding(query, timeout=45.0)
+    query_embedding = simple_embedding(query, timeout=45.0, is_document=False)
 
     # If doc_id is a list of strings, query each collection and combine results
     if isinstance(doc_id, list):
@@ -203,11 +202,13 @@ def search_similar(
                 distances = results.get("distances", [[]])[0]
                 
                 for doc_text, m, dist in zip(docs, metas, distances):
-                    all_results.append({
-                        "text": doc_text,
-                        "metadata": m,
-                        "score": dist
-                    })
+                    score = 1.0 - dist if dist < 1.0 else 1.0 / (1.0 + dist)
+                    if score >= 0.25:
+                        all_results.append({
+                            "text": doc_text,
+                            "metadata": m,
+                            "score": dist
+                        })
             except Exception as e:
                 logger.error(f"Error querying collection {d}: {e}")
                 continue
@@ -233,10 +234,12 @@ def search_similar(
         
         retrieved = []
         for d_text, m, dist in zip(docs, metas, distances):
-            retrieved.append({
-                "text": d_text,
-                "metadata": m,
-                "score": dist
-            })
+            score = 1.0 - dist if dist < 1.0 else 1.0 / (1.0 + dist)
+            if score >= 0.25:
+                retrieved.append({
+                    "text": d_text,
+                    "metadata": m,
+                    "score": dist
+                })
             
         return retrieved
