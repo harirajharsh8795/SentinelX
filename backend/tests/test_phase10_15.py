@@ -40,18 +40,18 @@ def test_trace_context_records():
     assert after == before + 1
 
 
-def test_compliance_csv():
-    csv = generate_compliance_report_csv()
+def test_compliance_csv(test_document):
+    csv = generate_compliance_report_csv(document_id=test_document)
     assert "COMPLIANCE SYSTEM REPORT" in csv
 
 
-def test_executive_pdf_bytes():
-    pdf = generate_executive_pdf()
+def test_executive_pdf_bytes(test_document):
+    pdf = generate_executive_pdf(document_id=test_document)
     assert pdf[:4] == b"%PDF"
 
 
-def test_board_docx_bytes():
-    docx = generate_board_docx()
+def test_board_docx_bytes(test_document):
+    docx = generate_board_docx(document_id=test_document)
     assert docx[:2] == b"PK"
 
 
@@ -67,13 +67,13 @@ def test_observability_traces_api():
     assert "traces" in r.json()
 
 
-def test_reports_pdf_endpoint():
-    r = client.get("/api/reports/executive-pdf")
+def test_reports_pdf_endpoint(test_document):
+    r = client.get(f"/api/reports/executive-pdf?document_id={test_document}")
     assert r.status_code == 200
     assert r.headers["content-type"] == "application/pdf"
 
 
-def test_reports_docx_endpoint():
-    r = client.get("/api/reports/board-docx")
+def test_reports_docx_endpoint(test_document):
+    r = client.get(f"/api/reports/board-docx?document_id={test_document}")
     assert r.status_code == 200
     assert "wordprocessingml" in r.headers["content-type"]

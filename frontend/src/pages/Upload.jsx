@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import api from "../services/api.js";
 import { useStore } from "../store/useStore.js";
+import { useChatStore } from "../store/useChatStore.js";
 
 export default function Upload() {
   const [file, setFile] = useState(null);
@@ -12,6 +13,52 @@ export default function Upload() {
   const [logs, setLogs] = useState([]);
   const navigate = useNavigate();
   const fileRef = useRef(null);
+
+  useEffect(() => {
+    let ws = null;
+    if (pipelineState === "indexing") {
+      const token = localStorage.getItem("token") || "";
+      const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+      
+      let host = window.location.host;
+      if ((host.includes("localhost") || host.includes("127.0.0.1")) && !host.includes(":8000")) {
+        host = host.replace(/:\d+$/, "") + ":8000";
+      }
+      
+      const wsUrl = `${protocol}://${host}/api/ws/telemetry?token=${encodeURIComponent(token)}`;
+      ws = new WebSocket(wsUrl);
+      
+      ws.onmessage = (e) => {
+        try {
+          const payload = JSON.parse(e.data);
+          if (payload.type === "telemetry" && payload.description) {
+            addLog(payload.description);
+            
+            if (payload.description.includes("Embedding generation:")) {
+              const match = payload.description.match(/Embedding generation:\s*(\d+)%/);
+              if (match) {
+                const percent = parseInt(match[1]);
+                const mappedProgress = 35 + Math.round((percent / 100) * 55);
+                setProgress(mappedProgress);
+              }
+            }
+          }
+        } catch (err) {
+          console.error("Failed to parse telemetry ws message", err);
+        }
+      };
+      
+      ws.onerror = (err) => {
+        console.error("Telemetry WebSocket error", err);
+      };
+    }
+    
+    return () => {
+      if (ws) {
+        ws.close();
+      }
+    };
+  }, [pipelineState]);
 
   const steps = [
     { key: "upload", label: "Secure Upload", icon: "cloud_upload" },
@@ -35,6 +82,7 @@ export default function Upload() {
       // Step 1: Upload the PDF
       const uploadRes = await api.post("/upload-document", formData, {
         headers: { "Content-Type": "multipart/form-data" },
+        timeout: 0,
         onUploadProgress: (event) => {
           if (event.total) {
             const p = Math.round((event.loaded / event.total) * 30);
@@ -58,7 +106,7 @@ export default function Upload() {
       // Step 3: Fire analysis in background with timeout
       const analyzePromise = api.post("/analyze-document", null, {
         params: { doc_id: documentId },
-        timeout: 120000
+        timeout: 0
       });
 
       // Add log messages on a schedule for visual feedback
@@ -81,6 +129,17 @@ export default function Upload() {
       addLog("Intelligence pipeline operational. Systems ready.");
       setPipelineState("done");
 
+      // Invalidate all cached analysis items in localStorage to prevent cross-document stale cache leaks
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith("analysis_")) {
+          localStorage.removeItem(key);
+        }
+      });
+
+      const previousDocId = useStore.getState().selectedDocId;
+      if (previousDocId) {
+        useChatStore.getState().clearDoc(previousDocId);
+      }
       useStore.getState().setSelectedDocId(documentId);
       window.dispatchEvent(new Event("sentinel:document_uploaded"));
 

@@ -3,58 +3,91 @@ Phase 6 — Real Predictive Analytics
 Date-based SLA breach prediction and risk propagation heuristics.
 """
 import re
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 from database.database import SessionLocal
 from database.models import Task, Alert, Document
 
 
-def _parse_deadline_days(deadline: str) -> Optional[int]:
-    if not deadline:
+def get_task_due_date(task) -> Optional[datetime]:
+    if not task.deadline:
         return None
-    m = re.search(r"(\d+)\s*(day|days|month|months|week|weeks)", deadline.lower())
-    if not m:
-        return None
-    n, unit = int(m.group(1)), m.group(2)
-    if "month" in unit:
-        return n * 30
-    if "week" in unit:
-        return n * 7
-    return n
+    deadline_clean = task.deadline.strip()
+    # Try parsing as absolute date first
+    for fmt in ("%Y-%m-%d", "%Y-%m-%d %H:%M:%S", "%d-%m-%Y", "%m/%d/%Y"):
+        try:
+            return datetime.strptime(deadline_clean, fmt)
+        except ValueError:
+            continue
+            
+    # Try relative parsing
+    m = re.search(r"(\d+)\s*(day|days|month|months|week|weeks)", deadline_clean.lower())
+    if m:
+        n, unit = int(m.group(1)), m.group(2)
+        created = task.created_at or datetime.now(timezone.utc).replace(tzinfo=None)
+        if "month" in unit:
+            return created + timedelta(days=n * 30)
+        elif "week" in unit:
+            return created + timedelta(days=n * 7)
+        else:
+            return created + timedelta(days=n)
+    return None
 
 
 def _task_breach_risk(task) -> Dict[str, Any]:
-    """Score SLA breach probability 0-100 based on age, priority, and deadline proximity."""
-    days_left = _parse_deadline_days(task.deadline or "")
-    age_days = (datetime.utcnow() - (task.created_at or datetime.utcnow())).days
-
-    score = 10.0
-    priority = (task.priority or "").lower()
-    if priority == "high":
-        score += 25
-    elif priority == "medium":
-        score += 12
-
-    if task.status and task.status.lower() == "pending":
-        score += 15
-
-    if days_left is not None:
-        if days_left <= 7:
-            score += 35
-        elif days_left <= 14:
-            score += 20
-        elif days_left <= 30:
-            score += 10
-        if age_days > days_left * 0.7:
-            score += 20  # consumed most of SLA window
-
+    """Score SLA breach probability 0-100 based on due date proximity and actual overdue status."""
+    due_date = get_task_due_date(task)
+    if not due_date:
+        return {
+            "task_id": task.id,
+            "title": task.title,
+            "department": task.department,
+            "breach_probability": 0,
+            "is_overdue": False,
+            "days_remaining": None,
+            "due_date": None,
+        }
+        
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    if task.status and task.status.lower() == "completed":
+        return {
+            "task_id": task.id,
+            "title": task.title,
+            "department": task.department,
+            "breach_probability": 0,
+            "is_overdue": False,
+            "days_remaining": (due_date - now).days,
+            "due_date": due_date.strftime("%Y-%m-%d"),
+        }
+        
+    is_overdue = now > due_date
+    if is_overdue:
+        prob = 100
+    else:
+        created = task.created_at or now
+        total_seconds = (due_date - created).total_seconds()
+        time_left = (due_date - now).total_seconds()
+        ratio_left = max(0.0, time_left / total_seconds) if total_seconds > 0 else 0.0
+        
+        # Priority multiplier
+        priority = (task.priority or "").lower()
+        multiplier = 1.0
+        if priority == "high":
+            multiplier = 1.5
+        elif priority == "medium":
+            multiplier = 1.2
+            
+        prob = min(99, round((1.0 - ratio_left) * 100 * multiplier))
+        
     return {
         "task_id": task.id,
         "title": task.title,
         "department": task.department,
-        "breach_probability": min(100, round(score)),
-        "days_remaining": days_left,
+        "breach_probability": prob,
+        "is_overdue": is_overdue,
+        "days_remaining": (due_date - now).days,
+        "due_date": due_date.strftime("%Y-%m-%d"),
     }
 
 

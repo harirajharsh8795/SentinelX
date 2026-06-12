@@ -245,19 +245,27 @@ def get_mock_response(prompt: str) -> str:
         summary = f"Analysis of {doc_label} ({regulator}) reveals {len(compliance_items)} actionable compliance directives requiring implementation across {len(set(c['department'] for c in compliance_items))} departments."
         
         # Dynamic strategic insights (distinct from summary)
-        strategic_parts = []
-        all_text_lower = " ".join(s.lower() for s in sentences[:10])
-        if any(w in all_text_lower for w in ["aml", "money laundering", "str", "ctr", "fiu"]):
-            strategic_parts.append("AML/CFT framework requires immediate strengthening to meet FIU-IND reporting timelines and avoid PMLA enforcement action.")
-        if any(w in all_text_lower for w in ["kyc", "v-cip", "cdd", "onboarding"]):
-            strategic_parts.append("Customer identification controls must be enhanced for digital onboarding channels to prevent identity fraud risks.")
-        if any(w in all_text_lower for w in ["cyber", "security", "vapt", "mfa", "firewall"]):
-            strategic_parts.append("Cybersecurity posture needs reinforcement including VAPT assessments, MFA enforcement, and incident response SLAs.")
-        if any(w in all_text_lower for w in ["audit", "review", "log"]):
-            strategic_parts.append("Internal audit coverage must be expanded with documented evidence trails for regulatory inspection readiness.")
-        if not strategic_parts:
-            strategic_parts.append(f"Immediate governance attention needed for {regulator} compliance alignment across operational and technology functions.")
-        strategic_insights = " ".join(strategic_parts[:2])
+        board_risks = f"- Operational risk of non-compliance with {regulator} guidelines on {compliance_items[0]['title'] if compliance_items else 'regulatory obligations'}.\n- Technology control gaps in executing automated compliance tracking."
+        reg_exposure = f"- High enforcement risk under {regulator} guidelines due to unaddressed directives.\n- Audit and inspection gaps in verification processes."
+        gov_resp = f"- Board of Directors must review and approve the compliance roadmap.\n- Chief Compliance Officer to present implementation status reports quarterly."
+        
+        deadlines_part = ""
+        for item in compliance_items[:2]:
+            deadlines_part += f"- {item['title']}: Effective deadline {item['deadline']}.\n"
+        if not deadlines_part:
+            deadlines_part = "- Review and align internal frameworks within 90 days."
+            
+        strat_actions = f"- Update institutional compliance policies and risk appetite framework.\n- Setup dedicated implementation steering committee."
+        oper_impact = f"- Direct resource allocation and system modifications across involved departments.\n- Enhanced audit trails and documented evidence of control effectiveness."
+
+        strategic_insights = (
+            f"**Board Risks**\n{board_risks}\n\n"
+            f"**Regulatory Exposure**\n{reg_exposure}\n\n"
+            f"**Governance Responsibilities**\n{gov_resp}\n\n"
+            f"**Compliance Deadlines**\n{deadlines_part}\n\n"
+            f"**Strategic Actions**\n{strat_actions}\n\n"
+            f"**Operational Impact**\n{oper_impact}"
+        )
 
         # Dynamic business impact
         impact_lines = []

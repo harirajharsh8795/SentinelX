@@ -36,9 +36,17 @@ export default function TopBar() {
       {documents.length > 0 && (
         <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-full px-4 py-1.5 shadow-[inset_0_0_8px_rgba(255,255,255,0.05)] text-xs text-white">
           <span className="text-[10px] font-mono uppercase tracking-wider text-slate-400">Active Dossier:</span>
-          <span className="max-w-[200px] truncate font-medium">
-            {activeDoc ? `${activeDoc.filename} ${activeDoc.regulator ? `[${activeDoc.regulator}]` : ""}` : "Select Dossier..."}
-          </span>
+          <select
+            value={selectedDocId}
+            onChange={(e) => useStore.getState().setSelectedDocId(e.target.value)}
+            className="bg-transparent text-white border-none focus:outline-none cursor-pointer max-w-[200px] truncate font-medium"
+          >
+            {documents.map((d) => (
+              <option key={d.id} value={d.id} className="bg-[#1e293b] text-white">
+                {d.filename} {d.regulator ? `[${d.regulator}]` : ""}
+              </option>
+            ))}
+          </select>
         </div>
       )}
       

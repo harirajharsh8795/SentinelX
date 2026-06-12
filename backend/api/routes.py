@@ -147,7 +147,15 @@ async def chat_api(request: ChatRequest, current_user = Depends(get_current_acti
     import asyncio
     try:
         result = await asyncio.wait_for(
-            chat_with_document(request.document_id, request.message),
+            chat_with_document(
+                request.document_id,
+                request.message,
+                chunk_ids=request.chunk_ids,
+                source_section=request.source_section,
+                source_text=request.source_text,
+                graph_context_mode=request.graph_context_mode,
+                full_coverage_mode=request.full_coverage_mode
+            ),
             timeout=60.0
         )
     except asyncio.TimeoutError:
@@ -241,6 +249,8 @@ def get_executive_pdf_report(document_id: str = None, current_user = Depends(get
             media_type="application/pdf",
             headers={"Content-Disposition": f"attachment; filename=executive_compliance_report_{document_id or 'latest'}.pdf"},
         )
+    except HTTPException as e:
+        raise e
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
 
@@ -253,6 +263,8 @@ def get_board_docx_report(document_id: str = None, current_user = Depends(get_cu
             media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             headers={"Content-Disposition": f"attachment; filename=board_compliance_summary_{document_id or 'latest'}.docx"},
         )
+    except HTTPException as e:
+        raise e
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
 

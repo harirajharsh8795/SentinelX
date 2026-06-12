@@ -32,6 +32,16 @@ alert_tool = AlertGeneratorTool()
 # ==============================================================================
 # REAL LANGGRAPH DEFINITIONS
 # ==============================================================================
+from typing import Annotated, Dict, List, Any, Optional
+import time
+
+def merge_reasoning(left: List[str], right: List[str]) -> List[str]:
+    combined = list(left) if left else []
+    for r in (right or []):
+        if r not in combined:
+            combined.append(r)
+    return combined
+
 class AgentGraphState(TypedDict):
     """Represents the LangGraph State containing shared context."""
     doc_id: str
@@ -42,7 +52,7 @@ class AgentGraphState(TypedDict):
     audit: List[str]
     alerts: List[str]
     executive_insights: str
-    agent_reasoning: List[str]
+    agent_reasoning: Annotated[List[str], merge_reasoning]
     grounding_score: float
     hallucination_detected: bool
     conflicts: List[Dict[str, Any]]
@@ -75,7 +85,8 @@ def persist_state_to_db(document_id: str, step_name: str, state: Dict[str, Any])
     execute_write_serialized(_save)
 
 def document_analyzer(state: AgentGraphState) -> Dict[str, Any]:
-    """Node 1: Analyzes context and extracts action points (MAPs)."""
+    """Node 1: Analyzes context and extracts action points (MAPs) concurrently."""
+    start_time = time.perf_counter()
     logger.info("[LangGraph Node: Document Analyzer] Extracting regulatory directives...")
     EventLogger.log_agent_node_executed(state.get("doc_id"), "Document Analyzer", "Extracting regulatory directives via Qwen2.5")
     try:
@@ -83,68 +94,55 @@ def document_analyzer(state: AgentGraphState) -> Dict[str, Any]:
         for m in raw_maps:
             m["department"] = dept_assignment_tool.run(m.get("department", "Compliance"))
         
-        reasoning = state.get("agent_reasoning", []) + ["Document Analyzer: Extracted actionable MAP points via Qwen2.5."]
+        elapsed = time.perf_counter() - start_time
+        reasoning = [f"Document Analyzer: Extracted actionable MAP points via Qwen2.5 (took {elapsed:.2f}s)."]
         updates = {"maps": raw_maps, "agent_reasoning": reasoning}
     except Exception as e:
         logger.error(f"Error in document_analyzer node: {e}")
-        reasoning = state.get("agent_reasoning", []) + [f"Document Analyzer failed: {e}"]
+        elapsed = time.perf_counter() - start_time
+        reasoning = [f"Document Analyzer failed: {e} (took {elapsed:.2f}s)."]
         updates = {"agent_reasoning": reasoning}
         
     persist_state_to_db(state["doc_id"], "document_analyzer", {**state, **updates})
     return updates
 
-def compliance_checker(state: AgentGraphState) -> Dict[str, Any]:
-    """Node 2: Runs risk assessment, validation checks, and measures grounding."""
-    logger.info("[LangGraph Node: Compliance Checker] Reviewing rules and calculating risk exposure...")
-    EventLogger.log_agent_node_executed(state.get("doc_id"), "Compliance Checker", "Calculating risk exposure and grounding score")
+def risk_analyst(state: AgentGraphState) -> Dict[str, Any]:
+    """Node 2a: Runs risk assessment concurrently."""
+    start_time = time.perf_counter()
+    logger.info("[LangGraph Node: Risk Analyst] Reviewing rules and calculating risk exposure...")
+    EventLogger.log_agent_node_executed(state.get("doc_id"), "Risk Analyst", "Calculating risk exposure and scoring")
     from ai_agents.risk_agent import run_risk_agent
     
     risks = []
     risk_score = 0
     compliance_score = 100
-    grounding_score = 1.0
-    hallucination_detected = False
-    
     try:
         risk_res = run_risk_agent(state["context"])
         risks = risk_res.get("risks", [])
-        
         scores = risk_scoring_tool.run(risks)
         risk_score = scores["risk_score"]
         compliance_score = scores["compliance_score"]
-    except Exception as e:
-        logger.error(f"Error in risk checks: {e}")
-
-    try:
-        mock_sources = [{"section_title": m.get("source_section", "General"), "snippet": m.get("title", ""), "score": 0.9} for m in state.get("maps", [])]
-        text_to_validate = " ".join([m.get("title", "") for m in state.get("maps", [])[:2]])
-        validation_res = compliance_validation_tool.run(text_to_validate, mock_sources)
         
-        grounding_score = validation_res.get("grounding_score", 0.9)
-        hallucination_detected = validation_res.get("risk", "low") == "high" or grounding_score < 0.7
+        elapsed = time.perf_counter() - start_time
+        reasoning = [f"Risk Analyst: Assessed risk score to {risk_score} (compliance score: {compliance_score}%) (took {elapsed:.2f}s)."]
+        updates = {
+            "risks": risks,
+            "risk_score": risk_score,
+            "compliance_score": compliance_score,
+            "agent_reasoning": reasoning
+        }
     except Exception as e:
-        logger.error(f"Error in compliance validation: {e}")
-
-    reasoning = state.get("agent_reasoning", []) + [
-        f"Compliance Checker: Assessed risk score to {risk_score} (compliance score: {compliance_score}%). Grounding score: {grounding_score * 100}%. Hallucination flag: {hallucination_detected}."
-    ]
-    
-    updates = {
-        "risks": risks,
-        "risk_score": risk_score,
-        "compliance_score": compliance_score,
-        "grounding_score": grounding_score,
-        "hallucination_detected": hallucination_detected,
-        "agent_reasoning": reasoning
-    }
-    EventLogger.log_compliance_result(state.get("doc_id"), compliance_score, risk_score, int(grounding_score*100))
-    if hallucination_detected:
-        event_bus.emit("risk_detected", f"Hallucination flag triggered (grounding {int(grounding_score*100)}% < 70%)", doc_id=state.get("doc_id"))
-    persist_state_to_db(state["doc_id"], "compliance_checker", {**state, **updates})
+        logger.error(f"Error in Risk Analyst node: {e}")
+        elapsed = time.perf_counter() - start_time
+        reasoning = [f"Risk Analyst failed: {e} (took {elapsed:.2f}s)."]
+        updates = {"agent_reasoning": reasoning}
+        
+    persist_state_to_db(state["doc_id"], "risk_analyst", {**state, **updates})
     return updates
 
 def cross_regulation(state: AgentGraphState) -> Dict[str, Any]:
-    """Node 3: Compares guidelines across different circulars."""
+    """Node 2b: Compares guidelines across different circulars concurrently."""
+    start_time = time.perf_counter()
     logger.info("[LangGraph Node: Cross Regulation] Checking conflicts against active corpus...")
     EventLogger.log_agent_node_executed(state.get("doc_id"), "Cross-Regulation", "Comparing guidelines across regulatory corpus")
     conflicts = []
@@ -162,9 +160,8 @@ def cross_regulation(state: AgentGraphState) -> Dict[str, Any]:
         except Exception as e:
             logger.warning(f"Cross comparison failed or skipped: {e}")
             
-    reasoning = state.get("agent_reasoning", []) + [
-        f"Cross-Regulation: Cross-referenced guidelines. Identified {len(conflicts)} conflicting requirements."
-    ]
+    elapsed = time.perf_counter() - start_time
+    reasoning = [f"Cross-Regulation: Cross-referenced guidelines. Identified {len(conflicts)} conflicting requirements (took {elapsed:.2f}s)."]
     
     updates = {
         "conflicts": conflicts,
@@ -173,30 +170,65 @@ def cross_regulation(state: AgentGraphState) -> Dict[str, Any]:
     persist_state_to_db(state["doc_id"], "cross_regulation", {**state, **updates})
     return updates
 
+def compliance_verifier(state: AgentGraphState) -> Dict[str, Any]:
+    """Node 3: Join node to run validation checks and measure grounding."""
+    start_time = time.perf_counter()
+    logger.info("[LangGraph Node: Compliance Verifier] Measuring grounding score...")
+    EventLogger.log_agent_node_executed(state.get("doc_id"), "Compliance Verifier", "Calculating grounding score and validating citations")
+    
+    grounding_score = 1.0
+    hallucination_detected = False
+    
+    try:
+        mock_sources = [{"section_title": m.get("source_section", "General"), "snippet": m.get("title", ""), "score": 0.9} for m in state.get("maps", [])]
+        text_to_validate = " ".join([m.get("title", "") for m in state.get("maps", [])[:2]])
+        validation_res = compliance_validation_tool.run(text_to_validate, mock_sources)
+        
+        grounding_score = validation_res.get("grounding_score", 0.9)
+        hallucination_detected = validation_res.get("risk", "low") == "high" or grounding_score < 0.7
+    except Exception as e:
+        logger.error(f"Error in compliance verifier: {e}")
+        
+    elapsed = time.perf_counter() - start_time
+    reasoning = [f"Compliance Verifier: Assessed grounding score to {grounding_score * 100}%. Hallucination flag: {hallucination_detected} (took {elapsed:.2f}s)."]
+    
+    updates = {
+        "grounding_score": grounding_score,
+        "hallucination_detected": hallucination_detected,
+        "agent_reasoning": reasoning
+    }
+    EventLogger.log_compliance_result(state.get("doc_id"), state.get("compliance_score", 100), state.get("risk_score", 0), int(grounding_score*100))
+    if hallucination_detected:
+        event_bus.emit("risk_detected", f"Hallucination flag triggered (grounding {int(grounding_score*100)}% < 70%)", doc_id=state.get("doc_id"))
+    persist_state_to_db(state["doc_id"], "compliance_verifier", {**state, **updates})
+    return updates
+
 def self_corrector(state: AgentGraphState) -> Dict[str, Any]:
     """Node 4: Evaluates grounding quality and refines analysis outputs."""
+    start_time = time.perf_counter()
     logger.info("[LangGraph Node: Self Corrector] Inspecting hallucination triggers...")
     EventLogger.log_agent_node_executed(state.get("doc_id"), "Self-Corrector", "Evaluating grounding quality for hallucination triggers")
     
     hallucinated = state.get("hallucination_detected", False)
     iterations = state.get("correction_iterations", 0)
-    reasoning = state.get("agent_reasoning", [])
+    reasoning = list(state.get("agent_reasoning", []))
     
     if hallucinated and iterations < 2:
         iterations += 1
-        reasoning.append(f"Self Corrector: Hallucination detected (grounding < 70%). Refining query analysis loop ({iterations}/2)...")
-        # Perform correction: Filter out short titles or maps lacking compliance severity
+        elapsed = time.perf_counter() - start_time
+        reasoning.append(f"Self Corrector: Hallucination detected (grounding < 70%). Refining query analysis loop ({iterations}/2) (took {elapsed:.2f}s)...")
         maps = state.get("maps", [])
         corrected_maps = [m for m in maps if m.get("title") and len(m.get("title", "")) > 12]
         
         updates = {
             "maps": corrected_maps,
             "correction_iterations": iterations,
-            "hallucination_detected": False,  # Reset flag for verification re-run
+            "hallucination_detected": False,
             "agent_reasoning": reasoning
         }
     else:
-        reasoning.append("Self Corrector: Grounding threshold verification satisfied. Moving to task generation.")
+        elapsed = time.perf_counter() - start_time
+        reasoning.append(f"Self Corrector: Grounding threshold verification satisfied. Moving to task generation (took {elapsed:.2f}s).")
         updates = {
             "agent_reasoning": reasoning
         }
@@ -206,6 +238,7 @@ def self_corrector(state: AgentGraphState) -> Dict[str, Any]:
 
 def task_generator(state: AgentGraphState) -> Dict[str, Any]:
     """Node 5: Translates compliance gaps to tasks and initiates high-risk alerts."""
+    start_time = time.perf_counter()
     logger.info("[LangGraph Node: Task Generator] Creating compliance workflows...")
     EventLogger.log_agent_node_executed(state.get("doc_id"), "Task Generator", "Creating MAP tasks and compliance alerts")
     
@@ -224,8 +257,9 @@ def task_generator(state: AgentGraphState) -> Dict[str, Any]:
     if alerts:
         execute_write_serialized(alert_tool.run, alerts, state["doc_id"])
         
-    reasoning = state.get("agent_reasoning", []) + [
-        f"Task Generator: Generated tasks ({len(maps)}) and compliance alerts ({len(alerts)}) in SentinelX DB."
+    elapsed = time.perf_counter() - start_time
+    reasoning = list(state.get("agent_reasoning", [])) + [
+        f"Task Generator: Generated tasks ({len(maps)}) and compliance alerts ({len(alerts)}) in SentinelX DB (took {elapsed:.2f}s)."
     ]
     
     updates = {
@@ -243,26 +277,30 @@ workflow = StateGraph(AgentGraphState)
 
 # Register Nodes
 workflow.add_node("document_analyzer", document_analyzer)
-workflow.add_node("compliance_checker", compliance_checker)
+workflow.add_node("risk_analyst", risk_analyst)
 workflow.add_node("cross_regulation", cross_regulation)
+workflow.add_node("compliance_verifier", compliance_verifier)
 workflow.add_node("self_corrector", self_corrector)
 workflow.add_node("task_generator", task_generator)
 
-# Entry Point
-workflow.set_entry_point("document_analyzer")
+# Entry Point to parallel execution
+workflow.add_edge(START, "document_analyzer")
+workflow.add_edge(START, "risk_analyst")
+workflow.add_edge(START, "cross_regulation")
 
-# Linear edges
-workflow.add_edge("document_analyzer", "compliance_checker")
-workflow.add_edge("compliance_checker", "cross_regulation")
+# Parallel paths join at compliance_verifier
+workflow.add_edge("document_analyzer", "compliance_verifier")
+workflow.add_edge("risk_analyst", "compliance_verifier")
+workflow.add_edge("cross_regulation", "compliance_verifier")
 
-# Conditional Edge from Cross-Regulation based on Checker results
+# Conditional Edge from Compliance Verifier based on results
 def route_after_checks(state: AgentGraphState):
     if state.get("hallucination_detected") and state.get("correction_iterations", 0) < 2:
         return "self_corrector"
     return "task_generator"
 
 workflow.add_conditional_edges(
-    "cross_regulation",
+    "compliance_verifier",
     route_after_checks,
     {
         "self_corrector": "self_corrector",
@@ -311,11 +349,14 @@ async def run_autonomous_compliance_graph(document_id: str, context: str) -> Dic
         "correction_iterations": 0
     }
 
-    # Execute LangGraph asynchronously
+    # Execute LangGraph asynchronously with 45-second timeout to allow recovery
     try:
-        final_state = await langgraph_app.ainvoke(initial_state)
+        final_state = await asyncio.wait_for(
+            langgraph_app.ainvoke(initial_state),
+            timeout=45.0
+        )
     except Exception as e:
-        logger.error(f"LangGraph execution failed: {e}. Attempting to recover partial state...")
+        logger.error(f"LangGraph execution failed or timed out: {e}. Attempting to recover partial state...")
         with get_db_context() as db:
             latest_state_db = db.query(models.AgentGraphState).filter(
                 models.AgentGraphState.document_id == document_id
@@ -327,7 +368,7 @@ async def run_autonomous_compliance_graph(document_id: str, context: str) -> Dic
                 if "agent_reasoning" not in final_state:
                     final_state["agent_reasoning"] = []
                 final_state["agent_reasoning"].append(
-                    f"System recovered partial results from step '{latest_state_db.step_name}' after a model connection issue."
+                    f"System recovered partial results from step '{latest_state_db.step_name}' after a model connection issue or timeout."
                 )
             else:
                 raise e
@@ -356,15 +397,27 @@ async def run_autonomous_compliance_graph(document_id: str, context: str) -> Dic
     enriched = await asyncio.to_thread(enrich_agent_output, raw_output, context)
     
     # Structure the final response payload
+    synthesis_dict = enriched.get("synthesis", {})
+    summary_val = ""
+    if isinstance(synthesis_dict, dict):
+        exec_sum = synthesis_dict.get("executive_summary", {})
+        if isinstance(exec_sum, dict):
+            summary_val = exec_sum.get("overview", "")
+        else:
+            summary_val = str(exec_sum)
+            
+    if not summary_val:
+        summary_val = enriched.get("executive_insights", "")
+
     final_result = {
         "document_id": document_id,
-        "summary": enriched.get("synthesis", {}).get("executive_summary", "") or enriched.get("executive_insights", ""),
+        "summary": summary_val,
         "compliance_score": final_state.get("compliance_score", 100),
         "risk_score": final_state.get("risk_score", 0),
         "maps": enriched.get("maps", []),
         "risks": enriched.get("risks", []),
-        "departments": list({m["department"] for m in enriched.get("maps", [])}),
-        "executive_insights": enriched.get("synthesis", {}).get("strategic_insights", "") or enriched.get("executive_insights", ""),
+        "departments": list({m["department"] for m in enriched.get("maps", []) if "department" in m}),
+        "executive_insights": enriched.get("executive_insights", ""),
         "agent_reasoning": enriched.get("agent_reasoning", []),
         "grounding_confidence": round(final_state.get("grounding_score", 1.0), 2),
         "hallucination_flag": final_state.get("grounding_score", 1.0) < 0.7,

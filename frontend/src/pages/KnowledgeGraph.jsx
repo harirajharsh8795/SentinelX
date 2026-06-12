@@ -4,6 +4,7 @@ import api from "../services/api.js";
 import { Link, useNavigate } from "react-router-dom";
 import ForceGraph2D from "react-force-graph-2d";
 import { useStore } from "../store/useStore.js";
+import { useChatStore } from "../store/useChatStore.js";
 
 export default function KnowledgeGraph() {
   const navigate = useNavigate();
@@ -42,7 +43,7 @@ export default function KnowledgeGraph() {
         return;
       }
       try {
-        const res = await api.get(`/knowledge-graph/${docId}`, { timeout: 120000 });
+        const res = await api.get(`/knowledge-graph/${docId}`, { timeout: 0 });
         const nodes = res.data.nodes.map((n) => ({
           ...n,
           val: 3 + (n.risk_score || 0) * 8,
@@ -84,7 +85,7 @@ export default function KnowledgeGraph() {
   const handleNodeClick = useCallback(async (node) => {
     setSelectedNode(node);
     try {
-      const res = await api.get(`/knowledge-graph/${docId}/node/${node.id}`, { timeout: 120000 });
+      const res = await api.get(`/knowledge-graph/${docId}/node/${node.id}`, { timeout: 0 });
       setNodeDetail(res.data);
     } catch {
       setNodeDetail({ node, connections: [] });
@@ -264,8 +265,23 @@ export default function KnowledgeGraph() {
             )}
             <button
               onClick={() => {
-                const queryText = `Analyze the regulatory details, implications, and actions associated with the ${selectedNode.type} "${selectedNode.label}".`;
-                localStorage.setItem("pending_copilot_query", queryText);
+                const { setPendingGraphQuery } = useChatStore.getState();
+                
+                function prepareGraphQuery(nodeLabel, nodeType) {
+                  return `Based on the document, what are the compliance obligations, risks, and requirements related to "${nodeLabel}"? Provide specific clause references.`;
+                }
+
+                setPendingGraphQuery({
+                  query: prepareGraphQuery(selectedNode.label, selectedNode.type),
+                  nodeLabel: selectedNode.label,
+                  timestamp: Date.now(),
+                  document_id: docId,
+                  chunk_ids: nodeDetail?.node?.chunk_ids || selectedNode.chunk_ids || [],
+                  source_section: nodeDetail?.node?.source_section || selectedNode.source_section || "",
+                  source_text: nodeDetail?.node?.source_text || selectedNode.source_text || "",
+                  graph_context_mode: true
+                });
+                
                 navigate("/chat");
               }}
               className="w-full block text-center text-sm py-2 bg-mint/10 hover:bg-mint/25 text-mint border border-mint/30 rounded-lg transition-all font-bold font-sans"

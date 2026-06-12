@@ -1,0 +1,333 @@
+﻿Uploaded Doc ID: 15ef6cf9-e635-4bdd-ace9-8146af06e163
+RAG CHAT RESPONSE:
+{
+  "reply": "Yes, the Cyber Security Policy should be distinct from the broader IT (Information Technology) policy (Source 5). It is important that cyber security measures are implemented independently and enforced separately to ensure a focused approach towards cybersecurity (Source 13). Key points:\n\n1 (Source 3). **Focus on Cybersecurity**: The Cyber Security Policy should focus specifically on cybersecurity principles, practices, and requirements designed to protect information systems from potential threats (Source 13). **Independent Implementation**: Since the IT policy is likely already addressing many of these concerns within its scope, it would be redundant and possibly contradictory for them to overlap entirely with a separate cyber security policy (Source 3). **Informed Decision-Making**: A clear distinction between the two policies ensures that decisions regarding cybersecurity can be made independently without conflicting actions or guidelines from an IT perspective (Source 5). **Separate Governance**: The governance structure overseeing these policies should recognize and enforce both, ensuring that neither is overlooked in organizational practices (Source 13). By maintaining a separation, entities are better equipped to address unique challenges specific to cyber security without overlapping with the more general aspects of information technology management (Source 13).",
+  "sources": [
+    {
+      "section_title": "\u092c\u0948\u0902\u0915\u093f\u0902\u0917 \u092a\u0930\u094d\u092f\u0935\u0947\u0915\u094d\u0937\u0923 \u0935\u093f\u092d\u093e\u0917,\u0947\u0902\u0926\u094d\u0930\u0940\u0930\u094d\u093e\u0930\u094d\u093e\u092f\u0932\u0930\u094d, \u0935\u0930\u094d\u0932\u094d\u092f \u091f\u094d\u0930\u0947\u094d \u0938\u0947\u0902\u091f\u0930, \u0938\u0947\u0902\u091f\u0930- I, \u092b \u092a\u0930\u0947\u094d,\u094b\u0932\u093e\u092c\u093e, \u092e\u093f\u0902\u092c\u0908 -400005",
+      "snippet": "[Hindi text],[Hindi text], [Hindi text], [Hindi text]- I, [Hindi text],[Hindi text], [Hindi text]-400005 Department of Banking Supervision, Central Office...",
+      "score": 0.0
+    },
+    {
+      "section_title": "DBS.CO/CSITE/BC.11/33.01.0 01/2015- 16",
+      "snippet": "DBS.CO/CSITE/BC.11/33.01.0 01/2015- 16 Jyeshtha 12, 1938 (saka) June 2, 2016 To The Chairman/ Managing Director /Chief Executive Officer All Scheduled...",
+      "score": 0.0
+    },
+    {
+      "section_title": "DBS.CO/CSITE/BC.11/33.01.0 01/2015- 16",
+      "snippet": "r risks . These would include, but not limited to, putting in place an adaptive Incident Response, Management and Recovery framework to deal with adve...",
+      "score": 0.11416713179943958
+    },
+    {
+      "section_title": "\u092d\u093e\u0930\u0924\u0940\u092f \u0930\u093f\u091c\u093f\u093c\u0930\u094d\u0935 \u092c\u0948\u0902\u0915",
+      "snippet": "[Hindi text]_________________________ RESERVE BANK OF INDIA _____________________ www.rbi.org.in [Hindi text],[Hindi text], [Hindi text]...",
+      "score": 0.062486744168224806
+    },
+    {
+      "section_title": "It may be ensured that the strategy deals with the following broad aspects :",
+      "snippet": "It may be ensured that the strategy deals with the following broad aspects : Cyber Security Policy to be distinct from the broader IT policy / IS Secu...",
+      "score": 0.5307595427488935
+    },
+    {
+      "section_title": "It may be ensured that the strategy deals with the following broad aspects :",
+      "snippet": "rols, vendor management and incident management & response are to be outlined. Arrangement for continuous surveillance 6. Testing for vulnerabilities...",
+      "score": 0.061915743904247644
+    },
+    {
+      "section_title": "\u092c\u0948\u0902\u0915\u093f\u0902\u0917 \u092a\u0930\u094d\u092f\u0935\u0947\u0915\u094d\u0937\u0923 \u0935\u093f\u092d\u093e\u0917,\u0947\u0902\u0926\u094d\u0930\u0940\u0930\u094d\u093e\u0930\u094d\u093e\u092f\u0932\u0930\u094d, \u0935\u0930\u094d\u0932\u094d\u092f \u091f\u094d\u0930\u0947\u094d \u0938\u0947\u0902\u091f\u0930, \u0938\u0947\u0902\u091f\u0930- I, \u092b \u092a\u0930\u0947\u094d,\u094b\u0932\u093e\u092c\u093e, \u092e\u093f\u0902\u092c\u0908 -400005",
+      "snippet": "IT architecture should be condu cive to security 7. The IT architecture should be designed in such a manner that it takes care of facilitat ing the se...",
+      "score": 0.0
+    },
+    {
+      "section_title": "\u092c\u0948\u0902\u0915\u093f\u0902\u0917 \u092a\u0930\u094d\u092f\u0935\u0947\u0915\u094d\u0937\u0923 \u0935\u093f\u092d\u093e\u0917,\u0947\u0902\u0926\u094d\u0930\u0940\u0930\u094d\u093e\u0930\u094d\u093e\u092f\u0932\u0930\u094d, \u0935\u0930\u094d\u0932\u094d\u092f \u091f\u094d\u0930\u0947\u094d \u0938\u0947\u0902\u091f\u0930, \u0938\u0947\u0902\u091f\u0930- I, \u092b \u092a\u0930\u0947\u094d,\u094b\u0932\u093e\u092c\u093e, \u092e\u093f\u0902\u092c\u0908 -400005",
+      "snippet": "hnology very heavily not only in their smooth functioning but also in providing cutting -edge digital products to their consumers and in the process c...",
+      "score": 0.08151464783630363
+    },
+    {
+      "section_title": "\u092c\u0948\u0902\u0915\u093f\u0902\u0917 \u092a\u0930\u094d\u092f\u0935\u0947\u0915\u094d\u0937\u0923 \u0935\u093f\u092d\u093e\u0917,\u0947\u0902\u0926\u094d\u0930\u0940\u0930\u094d\u093e\u0930\u094d\u093e\u092f\u0932\u0930\u094d, \u0935\u0930\u094d\u0932\u094d\u092f \u091f\u094d\u0930\u0947\u094d \u0938\u0947\u0902\u091f\u0930, \u0938\u0947\u0902\u091f\u0930- I, \u092b \u092a\u0930\u0947\u094d,\u094b\u0932\u093e\u092c\u093e, \u092e\u093f\u0902\u092c\u0908 -400005",
+      "snippet": "Cyber Crisis Management Plan 11. A Cyber Crisis Management Plan (CCMP) should be immediately evolved and should be a part of the overall Board approve...",
+      "score": 0.09322396777036457
+    },
+    {
+      "section_title": "\u092c\u0948\u0902\u0915\u093f\u0902\u0917 \u092a\u0930\u094d\u092f\u0935\u0947\u0915\u094d\u0937\u0923 \u0935\u093f\u092d\u093e\u0917,\u0947\u0902\u0926\u094d\u0930\u0940\u0930\u094d\u093e\u0930\u094d\u093e\u092f\u0932\u0930\u094d, \u0935\u0930\u094d\u0932\u094d\u092f \u091f\u094d\u0930\u0947\u094d \u0938\u0947\u0902\u091f\u0930, \u0938\u0947\u0902\u091f\u0930- I, \u092b \u092a\u0930\u0947\u094d,\u094b\u0932\u093e\u092c\u093e, \u092e\u093f\u0902\u092c\u0908 -400005",
+      "snippet": "shing frauds, drive -by downloads, browser gateway fraud, ghost administrator exploits, identity frauds, memory update frauds, password related frauds...",
+      "score": 0.0
+    },
+    {
+      "section_title": "\u092d\u093e\u0930\u0924\u0940\u092f \u0930\u093f\u091c\u093f\u093c\u0930\u094d\u0935 \u092c\u0948\u0902\u0915",
+      "snippet": "[Hindi text]_________________________ RESERVE BANK OF INDIA _____________________ www.rbi.org.in [Hindi text],[Hindi text], [Hindi text]...",
+      "score": 0.0
+    },
+    {
+      "section_title": "\u092c\u0948\u0902\u0915\u093f\u0902\u0917 \u092a\u0930\u094d\u092f\u0935\u0947\u0915\u094d\u0937\u0923 \u0935\u093f\u092d\u093e\u0917,\u0947\u0902\u0926\u094d\u0930\u0940\u0930\u094d\u093e\u0930\u094d\u093e\u092f\u0932\u0930\u094d, \u0935\u0930\u094d\u0932\u094d\u092f \u091f\u094d\u0930\u0947\u094d \u0938\u0947\u0902\u091f\u0930, \u0938\u0947\u0902\u091f\u0930- I, \u092b \u092a\u0930\u0947\u094d,\u094b\u0932\u093e\u092c\u093e, \u092e\u093f\u0902\u092c\u0908 -400005",
+      "snippet": "in containing cyber -risks. It is reiterated that banks need to report all unusual cyber - security incidents (whether they were successful or were at...",
+      "score": 0.1136508560048684
+    },
+    {
+      "section_title": "\u092c\u0948\u0902\u0915\u093f\u0902\u0917 \u092a\u0930\u094d\u092f\u0935\u0947\u0915\u094d\u0937\u0923 \u0935\u093f\u092d\u093e\u0917,\u0947\u0902\u0926\u094d\u0930\u0940\u0930\u094d\u093e\u0930\u094d\u093e\u092f\u0932\u0930\u094d, \u0935\u0930\u094d\u0932\u094d\u092f \u091f\u094d\u0930\u0947\u094d \u0938\u0947\u0902\u091f\u0930, \u0938\u0947\u0902\u091f\u0930- I, \u092b \u092a\u0930\u0947\u094d,\u094b\u0932\u093e\u092c\u093e, \u092e\u093f\u0902\u092c\u0908 -400005",
+      "snippet": "hould review the organi sational arrangements so that the security concerns are appreciated, receive adequate attention and get escalated to appropria...",
+      "score": 0.12981731110120193
+    },
+    {
+      "section_title": "\u092d\u093e\u0930\u0924\u0940\u092f \u0930\u093f\u091c\u093f\u093c\u0930\u094d\u0935 \u092c\u0948\u0902\u0915",
+      "snippet": "[Hindi text]_________________________ RESERVE BANK OF INDIA _____________________ www.rbi.org.in [Hindi text],[Hindi text], [Hindi text]...",
+      "score": 0.0
+    }
+  ],
+  "grounded": true,
+  "grounding_confidence": 0.23,
+  "grounding_score": 1.0,
+  "confidence_score": 0.23,
+  "grounding_state": "SUPPORTED",
+  "debug": {
+    "category": "cybersecurity",
+    "standalone_query": "Should the Cyber Security Policy be distinct from the broader IT policy?",
+    "chunks_used": [
+      {
+        "idx": 1,
+        "section": "\u092c\u0948\u0902\u0915\u093f\u0902\u0917 \u092a\u0930\u094d\u092f\u0935\u0947\u0915\u094d\u0937\u0923 \u0935\u093f\u092d\u093e\u0917,\u0947\u0902\u0926\u094d\u0930\u0940\u0930\u094d\u093e\u0930\u094d\u093e\u092f\u0932\u0930\u094d, \u0935\u0930\u094d\u0932\u094d\u092f \u091f\u094d\u0930\u0947\u094d \u0938\u0947\u0902\u091f\u0930, \u0938\u0947\u0902\u091f\u0930- I, \u092b \u092a\u0930\u0947\u094d,\u094b\u0932\u093e\u092c\u093e, \u092e\u093f\u0902\u092c\u0908 -400005",
+        "text_preview": "\u092c\u0948\u0902\u0915\u093f\u0902\u0917 \u092a\u0930\u094d\u092f\u0935\u0947\u0915\u094d\u0937\u0923 \u0935\u093f\u092d\u093e\u0917,\u0947\u0902\u0926\u094d\u0930\u0940\u0930\u094d\u093e\u0930\u094d\u093e\u092f\u0932\u0930\u094d, \u0935\u0930\u094d\u0932\u094d\u092f "
+      },
+      {
+        "idx": 2,
+        "section": "DBS.CO/CSITE/BC.11/33.01.0 01/2015- 16",
+        "text_preview": "DBS.CO/CSITE/BC.11/33.01.0 01/2015- 16 Jyeshtha 12"
+      },
+      {
+        "idx": 3,
+        "section": "DBS.CO/CSITE/BC.11/33.01.0 01/2015- 16",
+        "text_preview": "r risks . These would include, but not limited to,"
+      },
+      {
+        "idx": 4,
+        "section": "\u092d\u093e\u0930\u0924\u0940\u092f \u0930\u093f\u091c\u093f\u093c\u0930\u094d\u0935 \u092c\u0948\u0902\u0915",
+        "text_preview": "\u092d\u093e\u0930\u0924\u0940\u092f \u0930\u093f\u091c\u093f\u093c\u0930\u094d\u0935 \u092c\u0948\u0902\u0915 _________________________ RES"
+      },
+      {
+        "idx": 5,
+        "section": "It may be ensured that the strategy deals with the following broad aspects :",
+        "text_preview": "It may be ensured that the strategy deals with the"
+      },
+      {
+        "idx": 6,
+        "section": "It may be ensured that the strategy deals with the following broad aspects :",
+        "text_preview": "rols, vendor management and incident management & "
+      },
+      {
+        "idx": 7,
+        "section": "\u092c\u0948\u0902\u0915\u093f\u0902\u0917 \u092a\u0930\u094d\u092f\u0935\u0947\u0915\u094d\u0937\u0923 \u0935\u093f\u092d\u093e\u0917,\u0947\u0902\u0926\u094d\u0930\u0940\u0930\u094d\u093e\u0930\u094d\u093e\u092f\u0932\u0930\u094d, \u0935\u0930\u094d\u0932\u094d\u092f \u091f\u094d\u0930\u0947\u094d \u0938\u0947\u0902\u091f\u0930, \u0938\u0947\u0902\u091f\u0930- I, \u092b \u092a\u0930\u0947\u094d,\u094b\u0932\u093e\u092c\u093e, \u092e\u093f\u0902\u092c\u0908 -400005",
+        "text_preview": "IT architecture should be condu cive to security 7"
+      },
+      {
+        "idx": 8,
+        "section": "\u092c\u0948\u0902\u0915\u093f\u0902\u0917 \u092a\u0930\u094d\u092f\u0935\u0947\u0915\u094d\u0937\u0923 \u0935\u093f\u092d\u093e\u0917,\u0947\u0902\u0926\u094d\u0930\u0940\u0930\u094d\u093e\u0930\u094d\u093e\u092f\u0932\u0930\u094d, \u0935\u0930\u094d\u0932\u094d\u092f \u091f\u094d\u0930\u0947\u094d \u0938\u0947\u0902\u091f\u0930, \u0938\u0947\u0902\u091f\u0930- I, \u092b \u092a\u0930\u0947\u094d,\u094b\u0932\u093e\u092c\u093e, \u092e\u093f\u0902\u092c\u0908 -400005",
+        "text_preview": "hnology very heavily not only in their smooth func"
+      },
+      {
+        "idx": 9,
+        "section": "\u092c\u0948\u0902\u0915\u093f\u0902\u0917 \u092a\u0930\u094d\u092f\u0935\u0947\u0915\u094d\u0937\u0923 \u0935\u093f\u092d\u093e\u0917,\u0947\u0902\u0926\u094d\u0930\u0940\u0930\u094d\u093e\u0930\u094d\u093e\u092f\u0932\u0930\u094d, \u0935\u0930\u094d\u0932\u094d\u092f \u091f\u094d\u0930\u0947\u094d \u0938\u0947\u0902\u091f\u0930, \u0938\u0947\u0902\u091f\u0930- I, \u092b \u092a\u0930\u0947\u094d,\u094b\u0932\u093e\u092c\u093e, \u092e\u093f\u0902\u092c\u0908 -400005",
+        "text_preview": "Cyber Crisis Management Plan 11. A Cyber Crisis Ma"
+      },
+      {
+        "idx": 10,
+        "section": "\u092c\u0948\u0902\u0915\u093f\u0902\u0917 \u092a\u0930\u094d\u092f\u0935\u0947\u0915\u094d\u0937\u0923 \u0935\u093f\u092d\u093e\u0917,\u0947\u0902\u0926\u094d\u0930\u0940\u0930\u094d\u093e\u0930\u094d\u093e\u092f\u0932\u0930\u094d, \u0935\u0930\u094d\u0932\u094d\u092f \u091f\u094d\u0930\u0947\u094d \u0938\u0947\u0902\u091f\u0930, \u0938\u0947\u0902\u091f\u0930- I, \u092b \u092a\u0930\u0947\u094d,\u094b\u0932\u093e\u092c\u093e, \u092e\u093f\u0902\u092c\u0908 -400005",
+        "text_preview": "shing frauds, drive -by downloads, browser gateway"
+      },
+      {
+        "idx": 11,
+        "section": "\u092d\u093e\u0930\u0924\u0940\u092f \u0930\u093f\u091c\u093f\u093c\u0930\u094d\u0935 \u092c\u0948\u0902\u0915",
+        "text_preview": "\u092d\u093e\u0930\u0924\u0940\u092f \u0930\u093f\u091c\u093f\u093c\u0930\u094d\u0935 \u092c\u0948\u0902\u0915 _________________________ RES"
+      },
+      {
+        "idx": 12,
+        "section": "\u092c\u0948\u0902\u0915\u093f\u0902\u0917 \u092a\u0930\u094d\u092f\u0935\u0947\u0915\u094d\u0937\u0923 \u0935\u093f\u092d\u093e\u0917,\u0947\u0902\u0926\u094d\u0930\u0940\u0930\u094d\u093e\u0930\u094d\u093e\u092f\u0932\u0930\u094d, \u0935\u0930\u094d\u0932\u094d\u092f \u091f\u094d\u0930\u0947\u094d \u0938\u0947\u0902\u091f\u0930, \u0938\u0947\u0902\u091f\u0930- I, \u092b \u092a\u0930\u0947\u094d,\u094b\u0932\u093e\u092c\u093e, \u092e\u093f\u0902\u092c\u0908 -400005",
+        "text_preview": "in containing cyber -risks. It is reiterated that "
+      },
+      {
+        "idx": 13,
+        "section": "\u092c\u0948\u0902\u0915\u093f\u0902\u0917 \u092a\u0930\u094d\u092f\u0935\u0947\u0915\u094d\u0937\u0923 \u0935\u093f\u092d\u093e\u0917,\u0947\u0902\u0926\u094d\u0930\u0940\u0930\u094d\u093e\u0930\u094d\u093e\u092f\u0932\u0930\u094d, \u0935\u0930\u094d\u0932\u094d\u092f \u091f\u094d\u0930\u0947\u094d \u0938\u0947\u0902\u091f\u0930, \u0938\u0947\u0902\u091f\u0930- I, \u092b \u092a\u0930\u0947\u094d,\u094b\u0932\u093e\u092c\u093e, \u092e\u093f\u0902\u092c\u0908 -400005",
+        "text_preview": "hould review the organi sational arrangements so t"
+      },
+      {
+        "idx": 14,
+        "section": "\u092d\u093e\u0930\u0924\u0940\u092f \u0930\u093f\u091c\u093f\u093c\u0930\u094d\u0935 \u092c\u0948\u0902\u0915",
+        "text_preview": "\u092d\u093e\u0930\u0924\u0940\u092f \u0930\u093f\u091c\u093f\u093c\u0930\u094d\u0935 \u092c\u0948\u0902\u0915 _________________________ RES"
+      }
+    ],
+    "retrieval_count": 14,
+    "diagnostics": {
+      "adaptive_top_k": {
+        "candidate_k": 12,
+        "target_final_k": 8
+      },
+      "broad_query_detected": false,
+      "original_candidate_count": 13,
+      "expanded_section_chunks": 3,
+      "expanded_neighbor_chunks": 3,
+      "full_coverage_mode_active": false,
+      "total_retrieved": 14,
+      "query_targets": [
+        "Should the Cyber Security Policy be distinct from the broader IT policy?",
+        "Yes, the Cyber Security Policy should clearly delineate specific protocols and measures to safeguard digital infrastructure independently of broader IT policies.",
+        "distinct cyber security policy compared to broader IT policy",
+        "regulatory compliance requirements on distinguishing cyber policies",
+        "impact analysis of implementing separate cyber security vs. integrated IT policies"
+      ],
+      "hyde_document": "Yes, the Cyber Security Policy should clearly delineate specific protocols and measures to safeguard digital infrastructure independently of broader IT policies.",
+      "multi_queries": [
+        "distinct cyber security policy compared to broader IT policy",
+        "regulatory compliance requirements on distinguishing cyber policies",
+        "impact analysis of implementing separate cyber security vs. integrated IT policies"
+      ]
+    },
+    "reasoning_steps": [
+      "1. Query classified as 'cybersecurity'",
+      "2. Standalone query: Should the Cyber Security Policy be distinct from the broader IT policy?",
+      "3. Retrieved 14 chunks (Full Coverage Mode: False)",
+      "4. Expanded section chunks: 3, neighbor chunks: 3",
+      "5. Max Retrieval score: 0.5308",
+      "6. Grounding score: 1.0",
+      "7. Confidence score: 0.23 (23%)",
+      "8. Grounding State: SUPPORTED",
+      "9. Hallucination risk: low",
+      "10. Validation flags: None"
+    ],
+    "hallucination_risk": "low"
+  }
+}
+GRAPH COPILOT RESPONSE:
+{
+  "reply": "**Cybersecurity Controls:** Access controls, MFA (Multi-Factor Authentication), firewall rules\n\n**Incident Response:** Incident handling or threat prevention\n\n**Source Citations:** [Not found in document]\n\n---\n\nIn the provided context, it is stated that the Cyber Security Policy should be distinct from the broader IT policy to ensure a focused approach towards cybersecurity (Source 6). This is because the IT policy already addresses many of the concerns within its scope, and overlapping both policies could lead to redundancy or inconsistency (Source 1). By maintaining a clear distinction, entities are better equipped to address unique challenges specific to cyber security without conflicting actions or guidelines that come from an IT perspective (Source 1). The context also mentions that there is a need for a SOC (Security Operations Center) set up at the earliest if not already done, indicating that proper implementation of cybersecurity measures requires ongoing monitoring and updating (Source 3). This further underscores the importance of keeping both policies independent to ensure effective cyber security practices (Source 1).",
+  "sources": [
+    {
+      "section_title": "It may be ensured that the strategy deals with the following broad aspects :",
+      "snippet": "It may be ensured that the strategy deals with the following broad aspects : Cyber Security Policy to be distinct from the broader IT policy / IS Secu...",
+      "score": 1.0
+    },
+    {
+      "section_title": "\u092d\u093e\u0930\u0924\u0940\u092f \u0930\u093f\u091c\u093f\u093c\u0930\u094d\u0935 \u092c\u0948\u0902\u0915",
+      "snippet": "[Hindi text]_________________________ RESERVE BANK OF INDIA _____________________ www.rbi.org.in [Hindi text],[Hindi text], [Hindi text]...",
+      "score": 0.9
+    },
+    {
+      "section_title": "It may be ensured that the strategy deals with the following broad aspects :",
+      "snippet": "rols, vendor management and incident management & response are to be outlined. Arrangement for continuous surveillance 6. Testing for vulnerabilities...",
+      "score": 0.9
+    },
+    {
+      "section_title": "\u092c\u0948\u0902\u0915\u093f\u0902\u0917 \u092a\u0930\u094d\u092f\u0935\u0947\u0915\u094d\u0937\u0923 \u0935\u093f\u092d\u093e\u0917,\u0947\u0902\u0926\u094d\u0930\u0940\u0930\u094d\u093e\u0930\u094d\u093e\u092f\u0932\u0930\u094d, \u0935\u0930\u094d\u0932\u094d\u092f \u091f\u094d\u0930\u0947\u094d \u0938\u0947\u0902\u091f\u0930, \u0938\u0947\u0902\u091f\u0930- I, \u092b \u092a\u0930\u0947\u094d,\u094b\u0932\u093e\u092c\u093e, \u092e\u093f\u0902\u092c\u0908 -400005",
+      "snippet": "[Hindi text],[Hindi text], [Hindi text], [Hindi text]- I, [Hindi text],[Hindi text], [Hindi text]-400005 Department of Banking Supervision, Central Office...",
+      "score": 0.0
+    },
+    {
+      "section_title": "DBS.CO/CSITE/BC.11/33.01.0 01/2015- 16",
+      "snippet": "DBS.CO/CSITE/BC.11/33.01.0 01/2015- 16 Jyeshtha 12, 1938 (saka) June 2, 2016 To The Chairman/ Managing Director /Chief Executive Officer All Scheduled...",
+      "score": 0.0
+    },
+    {
+      "section_title": "DBS.CO/CSITE/BC.11/33.01.0 01/2015- 16",
+      "snippet": "r risks . These would include, but not limited to, putting in place an adaptive Incident Response, Management and Recovery framework to deal with adve...",
+      "score": 0.1017612398030269
+    },
+    {
+      "section_title": "\u092c\u0948\u0902\u0915\u093f\u0902\u0917 \u092a\u0930\u094d\u092f\u0935\u0947\u0915\u094d\u0937\u0923 \u0935\u093f\u092d\u093e\u0917,\u0947\u0902\u0926\u094d\u0930\u0940\u0930\u094d\u093e\u0930\u094d\u093e\u092f\u0932\u0930\u094d, \u0935\u0930\u094d\u0932\u094d\u092f \u091f\u094d\u0930\u0947\u094d \u0938\u0947\u0902\u091f\u0930, \u0938\u0947\u0902\u091f\u0930- I, \u092b \u092a\u0930\u0947\u094d,\u094b\u0932\u093e\u092c\u093e, \u092e\u093f\u0902\u092c\u0908 -400005",
+      "snippet": "IT architecture should be condu cive to security 7. The IT architecture should be designed in such a manner that it takes care of facilitat ing the se...",
+      "score": 0.0
+    },
+    {
+      "section_title": "\u092c\u0948\u0902\u0915\u093f\u0902\u0917 \u092a\u0930\u094d\u092f\u0935\u0947\u0915\u094d\u0937\u0923 \u0935\u093f\u092d\u093e\u0917,\u0947\u0902\u0926\u094d\u0930\u0940\u0930\u094d\u093e\u0930\u094d\u093e\u092f\u0932\u0930\u094d, \u0935\u0930\u094d\u0932\u094d\u092f \u091f\u094d\u0930\u0947\u094d \u0938\u0947\u0902\u091f\u0930, \u0938\u0947\u0902\u091f\u0930- I, \u092b \u092a\u0930\u0947\u094d,\u094b\u0932\u093e\u092c\u093e, \u092e\u093f\u0902\u092c\u0908 -400005",
+      "snippet": "hnology very heavily not only in their smooth functioning but also in providing cutting -edge digital products to their consumers and in the process c...",
+      "score": 0.07199675568665143
+    }
+  ],
+  "grounded": true,
+  "grounding_confidence": 0.8,
+  "grounding_score": 1.0,
+  "confidence_score": 0.8,
+  "grounding_state": "SUPPORTED",
+  "debug": {
+    "category": "cybersecurity",
+    "standalone_query": "**Should the Cyber Security Policy be separate from the broader IT policy?**",
+    "chunks_used": [
+      {
+        "idx": 1,
+        "section": "It may be ensured that the strategy deals with the following broad aspects :",
+        "text_preview": "It may be ensured that the strategy deals with the"
+      },
+      {
+        "idx": 2,
+        "section": "\u092d\u093e\u0930\u0924\u0940\u092f \u0930\u093f\u091c\u093f\u093c\u0930\u094d\u0935 \u092c\u0948\u0902\u0915",
+        "text_preview": "\u092d\u093e\u0930\u0924\u0940\u092f \u0930\u093f\u091c\u093f\u093c\u0930\u094d\u0935 \u092c\u0948\u0902\u0915 _________________________ RES"
+      },
+      {
+        "idx": 3,
+        "section": "It may be ensured that the strategy deals with the following broad aspects :",
+        "text_preview": "rols, vendor management and incident management & "
+      },
+      {
+        "idx": 4,
+        "section": "\u092c\u0948\u0902\u0915\u093f\u0902\u0917 \u092a\u0930\u094d\u092f\u0935\u0947\u0915\u094d\u0937\u0923 \u0935\u093f\u092d\u093e\u0917,\u0947\u0902\u0926\u094d\u0930\u0940\u0930\u094d\u093e\u0930\u094d\u093e\u092f\u0932\u0930\u094d, \u0935\u0930\u094d\u0932\u094d\u092f \u091f\u094d\u0930\u0947\u094d \u0938\u0947\u0902\u091f\u0930, \u0938\u0947\u0902\u091f\u0930- I, \u092b \u092a\u0930\u0947\u094d,\u094b\u0932\u093e\u092c\u093e, \u092e\u093f\u0902\u092c\u0908 -400005",
+        "text_preview": "\u092c\u0948\u0902\u0915\u093f\u0902\u0917 \u092a\u0930\u094d\u092f\u0935\u0947\u0915\u094d\u0937\u0923 \u0935\u093f\u092d\u093e\u0917,\u0947\u0902\u0926\u094d\u0930\u0940\u0930\u094d\u093e\u0930\u094d\u093e\u092f\u0932\u0930\u094d, \u0935\u0930\u094d\u0932\u094d\u092f "
+      },
+      {
+        "idx": 5,
+        "section": "DBS.CO/CSITE/BC.11/33.01.0 01/2015- 16",
+        "text_preview": "DBS.CO/CSITE/BC.11/33.01.0 01/2015- 16 Jyeshtha 12"
+      },
+      {
+        "idx": 6,
+        "section": "DBS.CO/CSITE/BC.11/33.01.0 01/2015- 16",
+        "text_preview": "r risks . These would include, but not limited to,"
+      },
+      {
+        "idx": 7,
+        "section": "\u092c\u0948\u0902\u0915\u093f\u0902\u0917 \u092a\u0930\u094d\u092f\u0935\u0947\u0915\u094d\u0937\u0923 \u0935\u093f\u092d\u093e\u0917,\u0947\u0902\u0926\u094d\u0930\u0940\u0930\u094d\u093e\u0930\u094d\u093e\u092f\u0932\u0930\u094d, \u0935\u0930\u094d\u0932\u094d\u092f \u091f\u094d\u0930\u0947\u094d \u0938\u0947\u0902\u091f\u0930, \u0938\u0947\u0902\u091f\u0930- I, \u092b \u092a\u0930\u0947\u094d,\u094b\u0932\u093e\u092c\u093e, \u092e\u093f\u0902\u092c\u0908 -400005",
+        "text_preview": "IT architecture should be condu cive to security 7"
+      },
+      {
+        "idx": 8,
+        "section": "\u092c\u0948\u0902\u0915\u093f\u0902\u0917 \u092a\u0930\u094d\u092f\u0935\u0947\u0915\u094d\u0937\u0923 \u0935\u093f\u092d\u093e\u0917,\u0947\u0902\u0926\u094d\u0930\u0940\u0930\u094d\u093e\u0930\u094d\u093e\u092f\u0932\u0930\u094d, \u0935\u0930\u094d\u0932\u094d\u092f \u091f\u094d\u0930\u0947\u094d \u0938\u0947\u0902\u091f\u0930, \u0938\u0947\u0902\u091f\u0930- I, \u092b \u092a\u0930\u0947\u094d,\u094b\u0932\u093e\u092c\u093e, \u092e\u093f\u0902\u092c\u0908 -400005",
+        "text_preview": "hnology very heavily not only in their smooth func"
+      }
+    ],
+    "retrieval_count": 8,
+    "diagnostics": {
+      "adaptive_top_k": {
+        "candidate_k": 12,
+        "target_final_k": 8
+      },
+      "broad_query_detected": false,
+      "original_candidate_count": 13,
+      "expanded_section_chunks": 3,
+      "expanded_neighbor_chunks": 3,
+      "full_coverage_mode_active": false,
+      "total_retrieved": 14,
+      "query_targets": [
+        "**Should the Cyber Security Policy be separate from the broader IT policy?**",
+        "Yes, the Cyber Security Policy should be distinct from the broader IT policy, ensuring a focused approach towards cybersecurity. Key points:\n- **Focus on Cybersecurity**: The Cyber Security Policy should focus specifically on cybersecurity principles and practices designed to protect information systems.\n- **Independent Implementation**: Since the IT policy is already addressing many of these concerns within its scope, it would be redundant for them to overlap entirely with a separate cyber security policy. A clear distinction between the two policies ensures independent decisions regarding cybersecurity without conflicting actions or guidelines from an IT perspective.\n\n--- END OF EXTRACT ---",
+        "should-cyber-security-policy-be-separated-from-broader-it-policy",
+        "cybersecurity-policy-separation-rationale",
+        "separation-of-governance-for-compliance"
+      ],
+      "hyde_document": "Yes, the Cyber Security Policy should be distinct from the broader IT policy, ensuring a focused approach towards cybersecurity. Key points:\n- **Focus on Cybersecurity**: The Cyber Security Policy should focus specifically on cybersecurity principles and practices designed to protect information systems.\n- **Independent Implementation**: Since the IT policy is already addressing many of these concerns within its scope, it would be redundant for them to overlap entirely with a separate cyber security policy. A clear distinction between the two policies ensures independent decisions regarding cybersecurity without conflicting actions or guidelines from an IT perspective.\n\n--- END OF EXTRACT ---",
+      "multi_queries": [
+        "should-cyber-security-policy-be-separated-from-broader-it-policy",
+        "cybersecurity-policy-separation-rationale",
+        "separation-of-governance-for-compliance"
+      ]
+    },
+    "reasoning_steps": [
+      "1. Query classified as 'cybersecurity'",
+      "2. Standalone query: **Should the Cyber Security Policy be separate from the broader IT policy?**",
+      "3. Retrieved 8 chunks (Full Coverage Mode: False)",
+      "4. Expanded section chunks: 3, neighbor chunks: 3",
+      "5. Max Retrieval score: 1.0",
+      "6. Grounding score: 1.0",
+      "7. Confidence score: 0.8 (80%)",
+      "8. Grounding State: SUPPORTED",
+      "9. Hallucination risk: low",
+      "10. Validation flags: None"
+    ],
+    "hallucination_risk": "low"
+  }
+}

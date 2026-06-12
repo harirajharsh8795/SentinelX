@@ -1,5 +1,7 @@
 import { NavLink, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
+import { useStore } from "../store/useStore.js";
+import { useChatStore } from "../store/useChatStore.js";
 
 const links = [
   { to: "/dashboard", label: "Intelligence Overview", icon: "dashboard" },
@@ -17,6 +19,8 @@ const links = [
 
 export default function Sidebar() {
   const navigate = useNavigate();
+  const activeDocId = useStore((state) => state.selectedDocId);
+  const chatStatus = useChatStore((state) => state.getRequestStatus(activeDocId));
   
   let user = { role: "Admin", username: "Guest" };
   try {
@@ -80,6 +84,9 @@ export default function Sidebar() {
                   <>
                      <span className={`material-symbols-outlined text-lg ${isActive ? "drop-shadow-[0_0_8px_rgba(59,130,246,0.8)]" : ""}`}>{link.icon}</span>
                      {link.label}
+                     {link.to === "/chat" && chatStatus === "processing" && (
+                       <span className="w-2 h-2 rounded-full bg-teal-400 animate-pulse ml-auto" title="AI processing..." />
+                     )}
                   </>
                 )}
               </NavLink>

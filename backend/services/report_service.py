@@ -3,7 +3,7 @@ Phase 12 — Report Generation: CSV, PDF executive summary, DOCX board report.
 """
 import io
 import csv
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List
 from database.database import SessionLocal
 from database.models import Task, Alert, Document
@@ -25,7 +25,7 @@ def generate_compliance_report_csv(document_id: str = None) -> str:
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow(["--- COMPLIANCE SYSTEM REPORT ---"])
-    writer.writerow(["Generated", datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")])
+    writer.writerow(["Generated", datetime.now(timezone.utc).replace(tzinfo=None).strftime("%Y-%m-%d %H:%M UTC")])
     writer.writerow(["Total Documents Indexed", len(documents)])
     writer.writerow(["Active Alerts", len(alerts)])
     writer.writerow(["Total Tasks", len(tasks)])
@@ -57,7 +57,7 @@ def generate_executive_pdf(document_id: str = None) -> bytes:
     pdf.set_font("Helvetica", "B", 16)
     pdf.cell(w, 10, "SentinelX - Executive Report", new_x="LMARGIN", new_y="NEXT")
     pdf.set_font("Helvetica", "", 10)
-    pdf.cell(w, 8, f"Generated: {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}", new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(w, 8, f"Generated: {datetime.now(timezone.utc).replace(tzinfo=None).strftime('%Y-%m-%d %H:%M UTC')}", new_x="LMARGIN", new_y="NEXT")
     pdf.ln(4)
 
     pdf.set_font("Helvetica", "B", 12)
@@ -99,7 +99,7 @@ def generate_board_docx(document_id: str = None) -> bytes:
     tasks, alerts, documents = _fetch_report_data(document_id)
     doc = DocxDocument()
     doc.add_heading("SentinelX — Board Compliance Summary", 0)
-    doc.add_paragraph(f"Report Date: {datetime.utcnow().strftime('%d %B %Y')}")
+    doc.add_paragraph(f"Report Date: {datetime.now(timezone.utc).replace(tzinfo=None).strftime('%d %B %Y')}")
     doc.add_heading("Executive Overview", level=1)
     doc.add_paragraph(
         f"The compliance intelligence platform currently monitors {len(documents)} regulatory "

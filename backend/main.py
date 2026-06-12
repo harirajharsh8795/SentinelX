@@ -47,7 +47,16 @@ seed_users()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     from services.corpus_ingestion_service import seed_regulatory_sources, ingest_all_corpus
+    from services.document_service import reindex_all_documents
     seed_regulatory_sources()
+    
+    logger.info("Triggering automatic re-indexing of existing documents on startup...")
+    try:
+        import asyncio
+        asyncio.create_task(asyncio.to_thread(reindex_all_documents))
+    except Exception as e:
+        logger.error(f"Error during startup re-indexing: {e}")
+
     if settings.auto_seed_corpus:
         with get_db_context() as db:
             corpus_count = db.query(models.Document).filter(

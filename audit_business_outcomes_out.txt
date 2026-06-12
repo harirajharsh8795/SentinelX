@@ -1,0 +1,213 @@
+﻿
+================================================================================
+ 1. AUTHENTICATION
+================================================================================
+Authenticated successfully.
+
+================================================================================
+ 2. MULTI-DOCUMENT INGESTION
+================================================================================
+Active documents in DB: 7
+File A Path: PDF FOR TEST/CYBERSECURITYRBI.pdf (exists: True)
+File B Path: PDF FOR TEST/RISK MANAGE RBI.pdf (exists: True)
+Document A ID: d206fe5f-8c2c-480b-9440-0df5985ba3f5
+Document B ID: 2fdc8202-54ba-4e88-bb25-6defc252fb52
+Analyzing Document A...
+Analyzing Document B...
+
+================================================================================
+ 3. RAG CHAT GROUNDED VERIFICATION
+================================================================================
+POST http://127.0.0.1:8000/api/chat
+Payload: {"document_id": "d206fe5f-8c2c-480b-9440-0df5985ba3f5", "message": "Should the Cyber Security Policy be distinct from the broader IT policy?", "full_coverage_mode": false}
+Response: {
+  "reply": "Not explicitly stated in the document.",
+  "sources": [
+    {
+      "section_title": "SEBI LISTING OBLIGATIONS AND DISCLOSURE REQUIREMENTS (LODR) CYBERSECURITY & RESILIENCE",
+      "snippet": "SEBI LISTING OBLIGATIONS AND DISCLOSURE REQUIREMENTS (LODR) CYBERSECURITY & RESILIENCE Regulation 27 Risk Management Committee Listed entities must co...",
+      "score": 0.52695943329505
+    }
+  ],
+  "grounded": true,
+  "grounding_confidence": 0.0,
+  "grounding_score": 0.0,
+  "confidence_score": 0.0,
+  "grounding_state": "NOT_FOUND",
+  "debug": {
+    "category": "cybersecurity",
+    "standalone_query": "Should the Cyber Security Policy be distinct from the broader IT policy?",
+    "chunks_used": [
+      {
+        "idx": 1,
+        "section": "SEBI LISTING OBLIGATIONS AND DISCLOSURE REQUIREMENTS (LODR) CYBERSECURITY & RESILIENCE",
+        "text_preview": "SEBI LISTING OBLIGATIONS AND DISCLOSURE REQUIREMEN"
+      }
+    ],
+    "retrieval_count": 1,
+    "diagnostics": {
+      "adaptive_top_k": {
+        "candidate_k": 12,
+        "target_final_k": 8
+      },
+      "broad_query_detected": false,
+      "original_candidate_count": 1,
+      "expanded_section_chunks": 0,
+      "expanded_neighbor_chunks": 0,
+      "full_coverage_mode_active": false,
+      "total_retrieved": 1,
+      "query_targets": [
+        "Should the Cyber Security Policy be distinct from the broader IT policy?",
+        "The Cyber Security Policy should delineate specific guidelines and measures tailored to protect digital assets while maintaining operational efficiency, ensuring a robust defense against cyber threats without compromising on critical IT functions.",
+        "Does a Cyber Security Policy need to differ from an overall Information Technology (IT) Policy?",
+        "Are there specific guidelines or requirements for creating separate Cyber Security Policies compared to broader IT policies?",
+        "Is it advisable to have distinct Cyber Security policies in addition to the existing IT policies?"
+      ],
+      "hyde_document": "The Cyber Security Policy should delineate specific guidelines and measures tailored to protect digital assets while maintaining operational efficiency, ensuring a robust defense against cyber threats without compromising on critical IT functions.",
+      "multi_queries": [
+        "Does a Cyber Security Policy need to differ from an overall Information Technology (IT) Policy?",
+        "Are there specific guidelines or requirements for creating separate Cyber Security Policies compared to broader IT policies?",
+        "Is it advisable to have distinct Cyber Security policies in addition to the existing IT policies?"
+      ]
+    },
+    "reasoning_steps": [
+      "1. Query classified as 'cybersecurity'",
+      "2. Standalone query: Should the Cyber Security Policy be distinct from the broader IT policy?",
+      "3. Retrieved 1 chunks (Full Coverage Mode: False)",
+      "4. Expanded section chunks: 0, neighbor chunks: 0",
+      "5. Max Retrieval score: 0.527",
+      "6. Grounding score: 0.0",
+      "7. Confidence score: 0.0 (0%)",
+      "8. Grounding State: NOT_FOUND",
+      "9. Hallucination risk: low",
+      "10. Validation flags: explicit_no_answer"
+    ],
+    "hallucination_risk": "low"
+  }
+}
+
+================================================================================
+ 4. GRAPH -> COPILOT GROUNDED VERIFICATION
+================================================================================
+POST http://127.0.0.1:8000/api/chat (Graph mode)
+Payload: {"document_id": "d206fe5f-8c2c-480b-9440-0df5985ba3f5", "message": "Should the Cyber Security Policy be distinct from the broader IT policy?", "chunk_ids": ["d206fe5f-8c2c-480b-9440-0df5985ba3f5-4"], "source_section": "It may be ensured that the strategy deals with the following broad aspects :", "source_text": "Cyber Security Policy to be distinct from the broader IT policy / IS Security Policy", "graph_context_mode": true}
+Response: {
+  "reply": "The document does not explicitly state whether a separate cyber security policy should be distinct from the broader IT policies (Source 1). The focus is on regulatory obligations and disclosure requirements, particularly for market infrastructure institutions (MIIs) and stock brokers (Source 1). SEBI mentions that these entities must constitute a Risk Management Committee with cybersecurity expertise and implement certain measures to ensure compliance (Source 1). For clarity and avoiding potential conflicts, it might be prudent to consult more detailed guidelines or specific sections focusing on cyber security regulations to determine if a distinct policy is necessary (Source 1).",
+  "sources": [
+    {
+      "section_title": "SEBI LISTING OBLIGATIONS AND DISCLOSURE REQUIREMENTS (LODR) CYBERSECURITY & RESILIENCE",
+      "snippet": "SEBI LISTING OBLIGATIONS AND DISCLOSURE REQUIREMENTS (LODR) CYBERSECURITY & RESILIENCE Regulation 27 Risk Management Committee Listed entities must co...",
+      "score": 0.5421931470027243
+    }
+  ],
+  "grounded": true,
+  "grounding_confidence": 0.54,
+  "grounding_score": 1.0,
+  "confidence_score": 0.54,
+  "grounding_state": "SUPPORTED",
+  "debug": {
+    "category": "cybersecurity",
+    "standalone_query": "To ensure clarity and avoid potential conflicts, should the cyber security policy be formulated distinctly separate from the broader information technology (IT) policies?",
+    "chunks_used": [
+      {
+        "idx": 1,
+        "section": "SEBI LISTING OBLIGATIONS AND DISCLOSURE REQUIREMENTS (LODR) CYBERSECURITY & RESILIENCE",
+        "text_preview": "SEBI LISTING OBLIGATIONS AND DISCLOSURE REQUIREMEN"
+      }
+    ],
+    "retrieval_count": 1,
+    "diagnostics": {
+      "adaptive_top_k": {
+        "candidate_k": 12,
+        "target_final_k": 8
+      },
+      "broad_query_detected": false,
+      "original_candidate_count": 1,
+      "expanded_section_chunks": 0,
+      "expanded_neighbor_chunks": 0,
+      "full_coverage_mode_active": false,
+      "total_retrieved": 1,
+      "query_targets": [
+        "To ensure clarity and avoid potential conflicts, should the cyber security policy be formulated distinctly separate from the broader information technology (IT) policies?",
+        "The proposed cyber security policy must be delineated from the overarching IT framework to prevent potential conflicts and enhance operational clarity.",
+        "Should the cyber security policy be distinct from IT policies?",
+        "Conflicts between cyber security and IT policies",
+        "Clarification on separation of cyber security from IT policies"
+      ],
+      "hyde_document": "The proposed cyber security policy must be delineated from the overarching IT framework to prevent potential conflicts and enhance operational clarity.",
+      "multi_queries": [
+        "Should the cyber security policy be distinct from IT policies?",
+        "Conflicts between cyber security and IT policies",
+        "Clarification on separation of cyber security from IT policies"
+      ]
+    },
+    "reasoning_steps": [
+      "1. Query classified as 'cybersecurity'",
+      "2. Standalone query: To ensure clarity and avoid potential conflicts, should the cyber security policy be formulated distinctly separate from the broader information technology (IT) policies?",
+      "3. Retrieved 1 chunks (Full Coverage Mode: False)",
+      "4. Expanded section chunks: 0, neighbor chunks: 0",
+      "5. Max Retrieval score: 0.5422",
+      "6. Grounding score: 1.0",
+      "7. Confidence score: 0.54 (54%)",
+      "8. Grounding State: SUPPORTED",
+      "9. Hallucination risk: low",
+      "10. Validation flags: None"
+    ],
+    "hallucination_risk": "low"
+  }
+}
+
+================================================================================
+ 5. RISK MITIGATION DISTINCTNESS VERIFICATION
+================================================================================
+Risks response: [
+  {
+    "risk": "Non-Compliance with Cybersecurity and Cyber Resilience Framework",
+    "severity": "High",
+    "reason": "MIIs and stock brokers failed to implement the required cybersecurity measures, specifically the annual VAPT (Vulnerability Assessment and Penetration Testing) as per Regulation 47.",
+    "source_section": "SEBI LISTING OBLIGATIONS AND DISCLOSURE REQUIREMENTS (LODR) CYBERSECURITY & RESILIENCE"
+  },
+  {
+    "risk": "Delayed Disclosure of Cyber Incidents",
+    "severity": "High",
+    "reason": "MIIs and stock brokers did not disclose any cyber incidents affecting operations, customer data, or trading systems within the required 24 hours as per Regulation 30.",
+    "source_section": "SEBI LISTING OBLIGATIONS AND DISCLOSURE REQUIREMENTS (LODR) CYBERSECURITY & RESILIENCE"
+  }
+]
+Unique risk reasons: 2 / 2
+PASS: Risks mitigations are distinct.
+
+================================================================================
+ 6. MULTI-DOCUMENT ISOLATION VERIFICATION
+================================================================================
+Document A tasks count: 0
+Document B tasks count: 5
+Task overlap: 0
+PASS: Document isolation holds.
+
+================================================================================
+ 7. DASHBOARD METRICS MATCH TASKS VERIFICATION
+================================================================================
+Dashboard response: {
+  "compliance_score": 100,
+  "total_documents": 7,
+  "pending_actions": 0,
+  "risk_alerts": 0,
+  "recent_uploads": [
+    "iso27001_annex_a_summary.txt",
+    "swift_csp_controls.txt",
+    "npci_upi_operating_guidelines.txt"
+  ],
+  "trend": [],
+  "severity_mix": {
+    "High": 0,
+    "Medium": 0,
+    "Low": 0
+  },
+  "open_actions": 0,
+  "completed_actions": 0,
+  "historical_data_available": false
+}
+Pending tasks in DB: 0
+Pending tasks reported in Dashboard: 0
+PASS: Dashboard metrics correspond to database records.

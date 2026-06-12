@@ -49,6 +49,14 @@ class DashboardResponse(BaseModel):
     severity_mix: Optional[dict] = None
     open_actions: Optional[int] = None
     completed_actions: Optional[int] = None
+    historical_data_available: Optional[bool] = True
+    tasks_list: Optional[List[dict]] = None
+    alerts_list: Optional[List[dict]] = None
+    documents_list: Optional[List[dict]] = None
+    exposure_index: Optional[int] = None
+    exposure_index_details: Optional[dict] = None
+    compliance_score_details: Optional[dict] = None
+
 
 class GraphNode(BaseModel):
     id: str
@@ -60,6 +68,11 @@ class GraphNode(BaseModel):
     risk_score: Optional[float] = None
     propagation_level: Optional[int] = None
     color: Optional[str] = None
+    chunk_ids: Optional[List[str]] = []
+    neighbor_chunk_ids: Optional[List[str]] = []
+    section_metadata: Optional[List[str]] = []
+    document_id: Optional[str] = None
+    source_text: Optional[str] = ""
 
 class GraphEdge(BaseModel):
     source: str
@@ -141,12 +154,20 @@ class ScrapeRunRequest(BaseModel):
 class ChatRequest(BaseModel):
     document_id: str
     message: str
+    chunk_ids: Optional[List[str]] = None
+    source_section: Optional[str] = None
+    source_text: Optional[str] = None
+    graph_context_mode: Optional[bool] = False
+    full_coverage_mode: Optional[bool] = False
 
 class ChatResponse(BaseModel):
     reply: str
     sources: List[SourceCitation] = []
     grounded: Optional[bool] = True
     grounding_confidence: Optional[float] = None
+    grounding_score: Optional[float] = None
+    confidence_score: Optional[float] = None
+    grounding_state: Optional[str] = "UNKNOWN"
     debug: Optional[dict] = None
 
 class DocumentItem(BaseModel):

@@ -94,7 +94,7 @@ class EventBroadcaster:
             "badge": meta["badge"],
             "title": meta["badge"],
             "description": description,
-            "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
+            "timestamp": datetime.now(timezone.utc).replace(tzinfo=None).strftime("%Y-%m-%d %H:%M:%S UTC"),
             "relative_time": "Just now",
             "document_id": doc_id,
         }

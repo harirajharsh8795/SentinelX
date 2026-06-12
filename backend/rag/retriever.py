@@ -8,8 +8,7 @@ from services.event_broadcaster import event_bus
 logger = get_logger(__name__)
 
 
-def get_collection(doc_id: str):
-    client = get_client()
+def sanitize_collection_name(doc_id: str) -> str:
     # Sanitize doc_id to conform to ChromaDB collection name rules (3-63 chars, alphanumeric, _ or -)
     sanitized_name = doc_id
     if not sanitized_name:
@@ -19,8 +18,14 @@ def get_collection(doc_id: str):
         sanitized_name = (sanitized_name + "___")[:3]
     elif len(sanitized_name) > 63:
         sanitized_name = sanitized_name[:63]
-        
+    return sanitized_name
+
+
+def get_collection(doc_id: str):
+    client = get_client()
+    sanitized_name = sanitize_collection_name(doc_id)
     return client.get_or_create_collection(name=sanitized_name, metadata={"hnsw:space": "cosine"})
+
 
 
 def add_chunks(
@@ -168,16 +173,10 @@ def search_similar(
     doc_id: Optional[Union[str, List[str]]] = None,
     regulator: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
-    # Resolve active doc_id if not provided
+    # Enforce mandatory doc_id filtering
     if not doc_id:
-        from database.database import get_db_context
-        from database.models import Document
-        with get_db_context() as db:
-            latest = db.query(Document).order_by(Document.upload_date.desc()).first()
-            if latest:
-                doc_id = latest.id
-            else:
-                doc_id = "default_collection"
+        logger.warning("Retrieval attempted without doc_id! Strict document isolation enforces that doc_id is mandatory.")
+        return []
 
     query_embedding = simple_embedding(query, timeout=45.0, is_document=False)
 
@@ -194,27 +193,36 @@ def search_similar(
                     query_embeddings=[query_embedding],
                     n_results=top_k,
                     where=where,
-                    include=["documents", "metadatas", "distances"]
+                    include=["documents", "metadatas", "distances", "embeddings"]
                 )
                 
                 docs = results.get("documents", [[]])[0]
                 metas = results.get("metadatas", [[]])[0]
                 distances = results.get("distances", [[]])[0]
+                embs = results.get("embeddings", [[]])[0] if results.get("embeddings") else [None] * len(docs)
                 
-                for doc_text, m, dist in zip(docs, metas, distances):
+                for doc_text, m, dist, emb in zip(docs, metas, distances, embs):
+                    # Cross-document contamination detection
+                    cand_doc_id = m.get("doc_id") or m.get("document_id")
+                    if cand_doc_id not in doc_id:
+                        logger.warning(f"SECURITY ALERT: Cross-document contamination detected! Discarded chunk from {cand_doc_id} when querying list {doc_id}.")
+                        continue
+                        
                     score = 1.0 - dist if dist < 1.0 else 1.0 / (1.0 + dist)
                     if score >= 0.25:
                         all_results.append({
                             "text": doc_text,
                             "metadata": m,
-                            "score": dist
+                            "score": score,
+                            "distance": dist,
+                            "embedding": emb
                         })
             except Exception as e:
                 logger.error(f"Error querying collection {d}: {e}")
                 continue
                 
-        # Sort combined results by score ascending (lower distance is better)
-        all_results.sort(key=lambda x: x["score"])
+        # Sort combined results by score descending (higher similarity is better)
+        all_results.sort(key=lambda x: x["score"], reverse=True)
         return all_results[:top_k]
 
     else:
@@ -225,21 +233,36 @@ def search_similar(
             query_embeddings=[query_embedding],
             n_results=top_k,
             where=where,
-            include=["documents", "metadatas", "distances"]
+            include=["documents", "metadatas", "distances", "embeddings"]
         )
         
         docs = results.get("documents", [[]])[0]
         metas = results.get("metadatas", [[]])[0]
         distances = results.get("distances", [[]])[0]
+        embs = results.get("embeddings", [[]])[0] if results.get("embeddings") else [None] * len(docs)
         
         retrieved = []
-        for d_text, m, dist in zip(docs, metas, distances):
+        for d_text, m, dist, emb in zip(docs, metas, distances, embs):
+            # Cross-document contamination detection
+            cand_doc_id = m.get("doc_id") or m.get("document_id")
+            if cand_doc_id != doc_id:
+                logger.warning(f"SECURITY ALERT: Cross-document contamination detected! Discarded chunk from {cand_doc_id} when querying {doc_id}.")
+                continue
+                
             score = 1.0 - dist if dist < 1.0 else 1.0 / (1.0 + dist)
             if score >= 0.25:
                 retrieved.append({
                     "text": d_text,
                     "metadata": m,
-                    "score": dist
+                    "score": score,
+                    "distance": dist,
+                    "embedding": emb
                 })
             
+        # Sort results by score descending
+        retrieved.sort(key=lambda x: x["score"], reverse=True)
         return retrieved
+
+
+
+

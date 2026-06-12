@@ -8,6 +8,9 @@ import TopBar from "../components/TopBar.jsx";
 import Toast from "../components/Toast.jsx";
 import Notifications from "../components/Notifications.jsx";
 import { useStore } from "../store/useStore.js";
+import api from "../services/api.js";
+import { useChatStore } from "../store/useChatStore.js";
+import { requestManager } from "../services/globalRequestManager.js";
 
 export default function DashboardLayout() {
   const toasts = useStore((state) => state.toasts);
@@ -30,6 +33,45 @@ export default function DashboardLayout() {
     window.addEventListener("sentinel:toast", handleToastEvent);
     return () => window.removeEventListener("sentinel:toast", handleToastEvent);
   }, [pushToast]);
+
+  // Restart any active requests that were interrupted by a browser refresh
+  useEffect(() => {
+    const activeReqs = useChatStore.getState().activeRequests;
+    const activePayloads = useChatStore.getState().activePayloads;
+
+    Object.keys(activeReqs).forEach((docId) => {
+      const status = activeReqs[docId];
+      if (status === "processing") {
+        if (requestManager.getStatus(docId) === "idle") {
+          const payload = activePayloads[docId];
+          if (payload) {
+            console.log(`[Recovery] Restarting background chat query for doc: ${docId}`, payload);
+            const apiCall = () => api.post("/chat", payload, { timeout: 90000 });
+            requestManager.startRequest(docId, apiCall)
+              .then((response) => {
+                useChatStore.getState().updateLastMessage(docId, response.data.reply, {
+                  sources: response.data.sources,
+                  debug: response.data.debug,
+                  grounded: response.data.grounded,
+                  grounding_confidence: response.data.grounding_confidence
+                });
+                useChatStore.getState().setRequestStatus(docId, "complete");
+                useChatStore.getState().clearPayload(docId);
+              })
+              .catch((error) => {
+                console.error(`[Recovery] Failed to recover request for doc: ${docId}`, error);
+                const errMsg = error?.response?.data?.detail || error?.message || "Request failed";
+                useChatStore.getState().updateLastMessage(docId, `Error: ${errMsg}`);
+                useChatStore.getState().setRequestStatus(docId, "error");
+                useChatStore.getState().clearPayload(docId);
+              });
+          } else {
+            useChatStore.getState().setRequestStatus(docId, "error");
+          }
+        }
+      }
+    });
+  }, []);
 
   return (
     <div className="flex h-screen bg-background text-textMain overflow-hidden font-sans relative selection:bg-primary/30">

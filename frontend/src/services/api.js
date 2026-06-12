@@ -1,8 +1,9 @@
 import axios from "axios";
+import { useStore } from "../store/useStore.js";
 
 const api = axios.create({
   baseURL: "/api",
-  timeout: 120000
+  timeout: 900000
 });
 
 api.interceptors.request.use(
@@ -12,8 +13,8 @@ api.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`;
     }
     
-    // Automatically inject active document_id query parameter
-    const docId = localStorage.getItem("document_id");
+    // Automatically inject active document_id query parameter from reactive Zustand store
+    const docId = useStore.getState().selectedDocId;
     if (docId) {
       config.params = config.params || {};
       if (config.params.document_id === undefined) {

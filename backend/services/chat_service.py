@@ -1,12 +1,15 @@
 import os
 import asyncio
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional, Union
 from rag.hybrid_search import hybrid_search_and_rerank
 from services.gemini_service import generate_text, generate_text_async
 from database.database import get_db_context
 from database.models import ChatMessage, Document
 from utils.input_sanitizer import sanitize_document_text, sanitize_user_query  # Security
 from database.database import SessionLocal
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 def get_chat_history(doc_id: str) -> str:
     from database.database import get_db_context
@@ -148,7 +151,7 @@ def classify_question(query: str, doc_text_has_aml: bool = False) -> str:
         return "operations"
     return "general"
 
-def build_dynamic_prompt(category: str, chat_history: str, context_text: str, standalone_query: str, message: str, regulator: str) -> str:
+def build_dynamic_prompt(category: str, chat_history: str, context_text: str, standalone_query: str, message: str, regulator: str, graph_context_mode: bool = False) -> str:
     """
     Dynamic Prompt Engineering & Answer Formatter:
     Customizes prompts based on category and regulator.
@@ -162,9 +165,17 @@ def build_dynamic_prompt(category: str, chat_history: str, context_text: str, st
     }
     regulator_instruction = regulator_guidelines.get(regulator, "Standard national compliance and audit regulations apply.")
 
+    graph_instruction = ""
+    if graph_context_mode:
+        graph_instruction = """
+GRAPH EVIDENCE FOCUS MODE:
+You are answering a query that originated from a specific Knowledge Graph Node.
+Prioritize answering using the exact node source evidence first (the first context chunks provided). Do not say you are limited if the node evidence covers the answer.
+"""
+
     base_instructions = f"""You are SentinelX, an expert enterprise compliance assistant.
 Your goal is to answer the user's latest question with utmost accuracy based *strictly* on the document context provided below.
-
+{graph_instruction}
 REGULATOR CONSTRAINTS ({regulator}):
 {regulator_instruction}
 
@@ -201,26 +212,28 @@ STRICT RULES — NO EXCEPTIONS:
    in document]"
 
 6. Source citations MUST include:
-   - Exact chapter/section number
-   - Exact regulation number
-   - Exact clause if available
-   NEVER generic "RBI (2023)" only.
+    - Exact chapter/section number
+    - Exact regulation number
+    - Exact clause if available
+    NEVER generic "RBI (2023)" only.
 
-For EVERY claim you make, 
-cite the source like this:
+CITATION RULES — STRICT:
 
-[Chapter X, Section Y.Z] or
-[Regulation X(Y)] or  
-[Clause X(Y)(Z)]
+ONLY use citations that appear WORD FOR WORD in the retrieved context chunks shown to you.
 
-Example:
-'REs must comply by Oct 1, 2023
-[Chapter II, Section II(i)]'
+VALID citation format:
+- If chunk header says "DBS.CO/CSITE/BC.11/..." → cite that exactly
+- If chunk says "Section 11" → cite "Section 11"
 
-NEVER write generic citations like
-'RBI (2023)' alone.
-If you cannot find exact section,
-write '[Section not identified]'
+INVALID — NEVER fabricate:
+- "Chapter II, Section I" (if not in chunks)
+- "Regulation XI(XY)"
+- "Clause XII(Z(Y))"
+
+If no exact citation available:
+Write: [Source: Retrieved context, exact section not identified]
+
+NEVER invent section numbers.
 
 NO-EVIDENCE FALLBACK: If the context does NOT contain direct evidence or information to answer the question, you MUST format your reply EXACTLY like this:
 ## Information Not Found
@@ -373,11 +386,30 @@ def doc_has_aml_content(doc_id: str) -> bool:
     return False
 
 
-async def chat_with_document(doc_id: str, message: str) -> Dict[str, Any]:
+async def chat_with_document(
+    doc_id: str,
+    message: str,
+    chunk_ids: Optional[List[str]] = None,
+    source_section: Optional[str] = None,
+    source_text: Optional[str] = None,
+    graph_context_mode: Optional[bool] = False,
+    full_coverage_mode: Optional[bool] = False
+) -> Dict[str, Any]:
     """
     Combines conversational memory, Query Rewriting, Question Classification, 
-    and Hybrid MMR RAG Retrieval to answer contextually.
+    and Hybrid MMR RAG Retrieval with Adaptive Top-K, Neighbor & Section Expansion to answer contextually.
     """
+    # Initialize diagnostics dictionary
+    diagnostic_info = {
+        "adaptive_top_k": {},
+        "broad_query_detected": False,
+        "original_candidate_count": 0,
+        "expanded_section_chunks": 0,
+        "expanded_neighbor_chunks": 0,
+        "full_coverage_mode_active": False,
+        "total_retrieved": 0
+    }
+
     # 0. Expand Hinglish/short queries to English equivalents
     expanded_message = expand_hinglish_query(message)
 
@@ -398,9 +430,157 @@ async def chat_with_document(doc_id: str, message: str) -> Dict[str, Any]:
 
     # Security: Sanitize user message before it enters any prompt
     safe_message = sanitize_user_query(message)
-    
-    # 4. Retrieve chunks with MMR enabled + strict regulator isolation (Phase 3)
-    retrieved_chunks = await asyncio.to_thread(hybrid_search_and_rerank, query=standalone_query, final_k=8, doc_id=doc_id, regulator=regulator)
+
+    # 4. Retrieve chunks with prioritized fallback ordering when graph_context_mode is active
+    retrieved_chunks = []
+    if graph_context_mode:
+        # a) Retrieve node source chunks with prefix repair & stale detection
+        node_chunks = []
+        repaired_ids = []
+        if chunk_ids:
+            for cid in chunk_ids:
+                if "-" in cid:
+                    parts = cid.split("-")
+                    idx = parts[-1]
+                    repaired_ids.append(f"{doc_id}-{idx}")
+                else:
+                    repaired_ids.append(f"{doc_id}-{cid}")
+            
+            logger.info(f"Graph context mode: Original chunk_ids={chunk_ids} -> Repaired chunk_ids={repaired_ids}")
+            
+            try:
+                from rag.retriever import get_collection
+                collection = get_collection(doc_id)
+                # Fetch chunks by repaired IDs
+                fetched = collection.get(ids=repaired_ids, include=["documents", "metadatas"])
+                f_ids = fetched.get("ids", []) or []
+                f_docs = fetched.get("documents", []) or []
+                f_metas = fetched.get("metadatas", []) or []
+                
+                # Check for stale chunk IDs
+                if not f_docs:
+                    logger.warning(f"STALE CHUNK DETECTED: Repaired IDs {repaired_ids} not found in collection {doc_id}.")
+                else:
+                    for cid, text, meta in zip(f_ids, f_docs, f_metas):
+                        cand_id = meta.get("doc_id") or meta.get("document_id") if meta else None
+                        if cand_id == doc_id:
+                            node_chunks.append({
+                                "text": text,
+                                "metadata": meta,
+                                "score": 1.0,
+                                "mmr_score": 1.0,
+                                "rerank_score": 1.0
+                            })
+                        else:
+                            logger.warning(f"SECURITY ALERT: Discarded graph node chunk {cand_id} due to doc_id mismatch with active {doc_id}")
+            except Exception as e:
+                logger.warning(f"Error fetching node chunks by Chroma IDs: {e}")
+
+        # Semantic Fallback Retrieval:
+        # If no chunks were resolved (IDs empty or stale), search using source_text or query
+        if not node_chunks:
+            fallback_query = source_text if source_text else (standalone_query if standalone_query else message)
+            logger.info(f"SEMANTIC FALLBACK RETRIEVAL activated. Querying with: '{fallback_query[:100]}'")
+            try:
+                from rag.retriever import search_similar
+                fallback_results = search_similar(fallback_query, top_k=3, doc_id=doc_id, regulator=regulator)
+                for res in fallback_results:
+                    node_chunks.append({
+                        "text": res["text"],
+                        "metadata": res["metadata"],
+                        "score": res["score"],
+                        "mmr_score": res["score"],
+                        "rerank_score": res["score"]
+                    })
+            except Exception as e:
+                logger.error(f"Error during semantic fallback search: {e}")
+
+        # Neighboring Chunks Expansion:
+        # Fetch adjacent neighbor chunks (idx - 1 and idx + 1) for the resolved chunks
+        if node_chunks:
+            neighbor_ids = []
+            for ch in node_chunks:
+                m = ch.get("metadata")
+                if m:
+                    idx = m.get("chunk_index")
+                    if idx is not None:
+                        if idx > 0:
+                            neighbor_ids.append(f"{doc_id}-{idx - 1}")
+                        neighbor_ids.append(f"{doc_id}-{idx + 1}")
+            
+            # Filter neighbors to fetch: deduplicate and exclude already retrieved IDs
+            existing_ids = {c["metadata"].get("id") or f"{doc_id}-{c['metadata'].get('chunk_index')}" for c in node_chunks if c.get("metadata")}
+            neighbor_ids = list(dict.fromkeys(neighbor_ids))
+            neighbor_ids = [nid for nid in neighbor_ids if nid not in existing_ids]
+            
+            if neighbor_ids:
+                try:
+                    from rag.retriever import get_collection
+                    collection = get_collection(doc_id)
+                    n_fetched = collection.get(ids=neighbor_ids, include=["documents", "metadatas"])
+                    n_docs = n_fetched.get("documents", []) or []
+                    n_metas = n_fetched.get("metadatas", []) or []
+                    expanded_count = 0
+                    for text, meta in zip(n_docs, n_metas):
+                        cand_id = meta.get("doc_id") or meta.get("document_id") if meta else None
+                        if cand_id == doc_id:
+                            node_chunks.append({
+                                "text": text,
+                                "metadata": meta,
+                                "score": 0.9,
+                                "mmr_score": 0.9,
+                                "rerank_score": 0.9
+                            })
+                            expanded_count += 1
+                    diagnostic_info["expanded_neighbor_chunks"] = diagnostic_info.get("expanded_neighbor_chunks", 0) + expanded_count
+                    logger.info(f"Successfully fetched {expanded_count} neighbor chunks for graph node.")
+                except Exception as e:
+                    logger.warning(f"Error fetching neighbor chunks: {e}")
+
+        # b) Retrieve active document chunks
+        active_chunks = await asyncio.to_thread(
+            hybrid_search_and_rerank, 
+            standalone_query, 
+            8, 
+            doc_id, 
+            regulator, 
+            full_coverage_mode, 
+            diagnostic_info
+        )
+
+        # Deduplicate combined chunks by text content comparison
+        def get_dedup_key(chunk):
+            import re
+            return re.sub(r"\s+", "", chunk.get("text", "").lower())[:300]
+
+        seen = set()
+        combined_chunks = []
+
+        for ch in node_chunks:
+            k = get_dedup_key(ch)
+            if k not in seen:
+                seen.add(k)
+                combined_chunks.append(ch)
+
+        for ch in active_chunks:
+            k = get_dedup_key(ch)
+            if k not in seen:
+                seen.add(k)
+                combined_chunks.append(ch)
+
+        # c) Global retrieval is strictly disabled. Only use active document chunks.
+        retrieved_chunks = combined_chunks[:8]
+    else:
+        # Standard active document retrieval path
+        retrieved_chunks = await asyncio.to_thread(
+            hybrid_search_and_rerank, 
+            standalone_query, 
+            8, 
+            doc_id, 
+            regulator, 
+            full_coverage_mode, 
+            diagnostic_info
+        )
     
     context_text = ""
     sources = []
@@ -423,7 +603,8 @@ async def chat_with_document(doc_id: str, message: str) -> Dict[str, Any]:
         sources.append({
             "section_title": section,
             "snippet": snippet.strip() + "...",
-            "score": chunk.get("mmr_score", chunk.get("rerank_score", 0))
+            "score": chunk.get("mmr_score", chunk.get("rerank_score", 0)),
+            "text": text
         })
         debug_chunks.append({"idx": idx+1, "section": section, "text_preview": text[:50]})
 
@@ -437,14 +618,14 @@ async def chat_with_document(doc_id: str, message: str) -> Dict[str, Any]:
                 break
         if not has_penalty_evidence:
             reply = """## Penalty Information Not Found
-
+ 
 This document does not explicitly specify penalties for non-compliance.
-
+ 
 **What this document does specify:**
 - Compliance timelines
 - Governance obligations  
 - Outsourcing requirements
-
+ 
 For penalty clauses, refer to:
 The parent RBI Act or specific enforcement circulars."""
             append_to_memory(doc_id, "user", message)
@@ -453,12 +634,16 @@ The parent RBI Act or specific enforcement circulars."""
                 "reply": reply,
                 "sources": sources,
                 "grounded": True,
-                "grounding_confidence": 1.0,
+                "grounding_confidence": 0.0,
+                "grounding_score": 0.0,
+                "confidence_score": 0.0,
+                "grounding_state": "NOT_FOUND",
                 "debug": {
                     "category": "penalties",
                     "standalone_query": standalone_query,
                     "chunks_used": debug_chunks,
                     "retrieval_count": len(retrieved_chunks),
+                    "diagnostics": diagnostic_info,
                     "reasoning_steps": [
                         "1. Query classified as penalties",
                         "2. No evidence of penalties found in retrieved chunks",
@@ -478,12 +663,15 @@ The parent RBI Act or specific enforcement circulars."""
             "sources": [],
             "grounded": False,
             "grounding_confidence": 0.0,
+            "grounding_score": 0.0,
+            "confidence_score": 0.0,
+            "grounding_state": "UNKNOWN",
             "debug": {"query": standalone_query, "chunks_found": 0, "hallucination_risk": "high"},
         }
 
     # 7. Question Classification & Dynamic Prompts (Steps 7, 8, 11)
     category = classify_question(standalone_query, doc_text_has_aml=doc_text_has_aml)
-    prompt = build_dynamic_prompt(category, chat_history, context_text, standalone_query, safe_message, regulator)
+    prompt = build_dynamic_prompt(category, chat_history, context_text, standalone_query, safe_message, regulator, graph_context_mode=graph_context_mode)
 
     # 8. Generate Answer with 45s hard timeout
     from services.observability_service import TraceContext, estimate_grounding_quality
@@ -503,39 +691,80 @@ The parent RBI Act or specific enforcement circulars."""
         summary_text = "\n".join(summary_bullets)
         reply = f"""## Partial Analysis
 Based on retrieved context:
-
+ 
 {summary_text}
-
+ 
 ⚠️ Full analysis timed out. Try a more specific query."""
 
     quality = estimate_grounding_quality(reply, sources)
-    reply = quality.get("validated_reply", reply)
-    
+    hallucination_risk = quality.get("risk")
+    unsupported = len([r for r in quality.get("reasons", []) if "unsupported" in r])
+    unsupported_count = quality.get("unsupported_sentences", 0)
+    grounding_state = quality.get("grounding_state", "UNKNOWN")
+
+    # BLOCK ungrounded responses only if the grounding state is explicitly UNSUPPORTED
+    if grounding_state == "UNSUPPORTED":
+        chunk_summaries = "\n".join([
+            f"- {s.get('text','')[:200]}"
+            for s in sources[:3]
+        ])
+        reply = f"""## Analysis Limited by Document Coverage
+ 
+The retrieved document sections do not contain sufficient grounded information to answer this query with confidence.
+ 
+**What was found in the document:**
+{chunk_summaries}
+ 
+**Recommendation:** 
+Rephrase your query to focus on specific sections mentioned above, or check if this topic is covered in a different document section.
+ 
+**Retrieved chunks:** {len(sources)}
+**Confidence:** Low — answer blocked to prevent hallucination."""
+        
+        grounding_confidence = 0.0
+        grounded = False
+        hallucination_risk = "high"
+        grounding_score = 0.0
+        confidence_score = 0.0
+        grounding_state = "UNSUPPORTED"
+    else:
+        reply = quality.get("validated_reply", reply)
+        grounding_score = quality.get("grounding_score", 0.0)
+        confidence_score = quality.get("confidence_score", 0.0)
+        grounding_state = quality.get("grounding_state", "UNKNOWN")
+        grounding_confidence = confidence_score
+        grounded = quality.get("risk") != "high"
+
     # 9. Append to memory
     append_to_memory(doc_id, "user", message)
     append_to_memory(doc_id, "assistant", reply)
-    
-    grounding_confidence = quality.get("grounding_score", 0.0)
-    grounded = quality.get("risk") != "high"
 
     return {
         "reply": reply,
         "sources": sources,
         "grounded": grounded,
         "grounding_confidence": grounding_confidence,
+        "grounding_score": grounding_score,
+        "confidence_score": confidence_score,
+        "grounding_state": grounding_state,
         "debug": {
             "category": category,
             "standalone_query": standalone_query,
             "chunks_used": debug_chunks,
             "retrieval_count": len(retrieved_chunks),
+            "diagnostics": diagnostic_info,
             "reasoning_steps": [
                 f"1. Query classified as '{category}'",
                 f"2. Standalone query: {standalone_query}",
-                f"3. Retrieved {len(retrieved_chunks)} chunks via hybrid MMR search",
-                f"4. Grounding confidence: {round(grounding_confidence * 100)}%",
-                f"5. Hallucination risk: {quality.get('risk', 'unknown')}",
-                f"6. Validation flags: {', '.join(quality.get('reasons', [])) or 'None'}"
+                f"3. Retrieved {len(retrieved_chunks)} chunks (Full Coverage Mode: {diagnostic_info.get('full_coverage_mode_active', False)})",
+                f"4. Expanded section chunks: {diagnostic_info.get('expanded_section_chunks', 0)}, neighbor chunks: {diagnostic_info.get('expanded_neighbor_chunks', 0)}",
+                f"5. Max Retrieval score: {round(max((s.get('score', 0.0) for s in sources), default=0.0), 4)}",
+                f"6. Grounding score: {round(grounding_score, 2)}",
+                f"7. Confidence score: {round(confidence_score, 2)} ({round(confidence_score * 100)}%)",
+                f"8. Grounding State: {grounding_state}",
+                f"9. Hallucination risk: {hallucination_risk}",
+                f"10. Validation flags: {', '.join(quality.get('reasons', [])) or 'None'}"
             ],
-            "hallucination_risk": quality.get("risk"),
+            "hallucination_risk": hallucination_risk,
         },
     }

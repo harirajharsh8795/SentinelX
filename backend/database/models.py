@@ -1,6 +1,6 @@
 from sqlalchemy import Boolean, Column, Integer, String, DateTime, ForeignKey, Text, JSON
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import uuid4
 from .database import Base
 
@@ -21,7 +21,7 @@ class Document(Base):
 
     id = Column(String, primary_key=True, default=generate_uuid, index=True)
     filename = Column(String, index=True)
-    upload_date = Column(DateTime, default=datetime.utcnow, index=True)
+    upload_date = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), index=True)
     status = Column(String, default="Indexed") # Pending, Processing, Indexed, Failed
     uploader_id = Column(Integer, ForeignKey("users.id"))
     file_path = Column(String)
@@ -73,7 +73,7 @@ class ScrapeRecord(Base):
     title = Column(String)
     source_url = Column(String, unique=True, index=True)
     document_id = Column(String, ForeignKey("documents.id"), nullable=True)
-    scraped_at = Column(DateTime, default=datetime.utcnow)
+    scraped_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
     status = Column(String, default="pending")  # pending | indexed | failed
     error_message = Column(Text, nullable=True)
 
@@ -85,7 +85,7 @@ class ChatMessage(Base):
     session_id = Column(String, index=True)   # Links to document_id or explicit session
     role = Column(String)                     # 'user' or 'assistant'
     content = Column(Text)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
 
 class Task(Base):
@@ -98,7 +98,7 @@ class Task(Base):
     status = Column(String, default="pending") # pending, completed
     priority = Column(String, default="Medium") # low, medium, high
     deadline = Column(String)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
     
     document_id = Column(String, ForeignKey("documents.id"), nullable=True)
     assignee_id = Column(Integer, ForeignKey("users.id"), nullable=True)
@@ -140,5 +140,5 @@ class AgentGraphState(Base):
     document_id = Column(String, index=True)
     step_name = Column(String)
     state_data = Column(JSON)
-    timestamp = Column(DateTime, default=datetime.utcnow)
+    timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 

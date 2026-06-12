@@ -5,7 +5,10 @@ import ChatMessage from "../components/ChatMessage.jsx";
 import api from "../services/api.js";
 import { useStore } from "../store/useStore.js";
 import { useChatStore } from "../store/useChatStore.js";
+import { requestManager } from "../services/globalRequestManager.js";
 import { Link } from "react-router-dom";
+import ReasoningTimeline from "../components/ReasoningTimeline.jsx";
+
 
 const THINKING_MESSAGES = [
   "Retrieving relevant clauses...",
@@ -22,18 +25,19 @@ const formatTime = (s) =>
 export default function Chat() {
   const docId = useStore((state) => state.selectedDocId);
   
-  const messages = useChatStore((state) => state.messages);
-  const setMessages = useChatStore((state) => state.setMessages);
-  const clearMessages = useChatStore((state) => state.clearMessages);
-  const chatDocId = useChatStore((state) => state.documentId);
-  const setChatDocId = useChatStore((state) => state.setDocumentId);
+  const {
+    getMessages,
+    addMessage,
+    updateLastMessage,
+    pendingGraphQuery,
+    clearPendingGraphQuery,
+    setRequestStatus,
+    getRequestStatus,
+    setPayload,
+    clearPayload
+  } = useChatStore();
 
-  useEffect(() => {
-    if (docId && docId !== chatDocId) {
-      clearMessages();
-      setChatDocId(docId);
-    }
-  }, [docId, chatDocId, clearMessages, setChatDocId]);
+  const messages = getMessages(docId);
 
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -42,22 +46,17 @@ export default function Chat() {
   const [thinkingIndex, setThinkingIndex] = useState(0);
   const [elapsed, setElapsed] = useState(0);
   const [showTimeoutWarning, setShowTimeoutWarning] = useState(false);
+  const [fullCoverage, setFullCoverage] = useState(false);
 
   const [recording, setRecording] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
 
-  // WebSocket reference to ensure only one connection exists
-  const wsRef = useRef(null);
-  
   // Mounted flag to guard all setState calls from background threads/promises
   const isMounted = useRef(true);
 
   // Safe wrappers for setState to prevent state changes on unmounted component
-  const safeSetMessages = (val) => {
-    if (isMounted.current) setMessages(val);
-  };
   const safeSetInput = (val) => {
     if (isMounted.current) setInput(val);
   };
@@ -78,15 +77,76 @@ export default function Chat() {
     isMounted.current = true;
     return () => {
       isMounted.current = false;
-      // Cleanup WebSocket on unmount
-      if (wsRef.current) {
-        console.log("Component unmounting. Closing WebSocket.");
-        wsRef.current.intentionalClose = true;
-        wsRef.current.close();
-        wsRef.current = null;
-      }
     };
   }, []);
+
+  useEffect(() => {
+    const status = getRequestStatus(docId);
+    if (status === "processing") {
+      setLoading(true);
+
+      // Restore active background request if browser was refreshed
+      if (requestManager.getStatus(docId) !== "processing") {
+        const payload = useChatStore.getState().activePayloads[docId];
+        if (payload) {
+          console.log("Restoring background request after refresh for document:", docId);
+          const apiCall = () => api.post("/chat", payload, { timeout: 90000 });
+          requestManager.startRequest(docId, apiCall)
+            .then((response) => {
+              updateLastMessage(docId, response.data.reply, {
+                sources: response.data.sources,
+                debug: response.data.debug,
+                grounded: response.data.grounded,
+                grounding_confidence: response.data.grounding_confidence
+              });
+              setRequestStatus(docId, "complete");
+              clearPayload(docId);
+              if (isMounted.current) {
+                setLoading(false);
+              }
+            })
+            .catch((error) => {
+              const errMsg = error?.response?.data?.detail || error?.message || "Request failed";
+              updateLastMessage(docId, `Error: ${errMsg}`);
+              setRequestStatus(docId, "error");
+              clearPayload(docId);
+              if (isMounted.current) {
+                setLoading(false);
+              }
+            });
+        } else {
+          // Fallback if payload isn't found to avoid infinite loading state
+          setRequestStatus(docId, "idle");
+          setLoading(false);
+        }
+      }
+
+      requestManager.setOnComplete(docId, (response) => {
+        updateLastMessage(docId, response.data.reply, {
+          sources: response.data.sources,
+          debug: response.data.debug,
+          grounded: response.data.grounded,
+          grounding_confidence: response.data.grounding_confidence
+        });
+        setRequestStatus(docId, "complete");
+        clearPayload(docId);
+        if (isMounted.current) {
+          setLoading(false);
+        }
+      });
+      requestManager.setOnError(docId, (error) => {
+        const errMsg = error?.response?.data?.detail || error?.message || "Request failed";
+        updateLastMessage(docId, `Error: ${errMsg}`);
+        setRequestStatus(docId, "error");
+        clearPayload(docId);
+        if (isMounted.current) {
+          setLoading(false);
+        }
+      });
+    } else {
+      setLoading(false);
+    }
+  }, [docId]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -148,169 +208,76 @@ export default function Chat() {
     }
   };
 
-  const sendQuery = (queryText, isRetry = false, retryAttempt = 0) => {
+  const sendQuery = (queryText) => {
     if (!queryText.trim() || !docId) return;
+
+    safeSetInput("");
     
-    if (!isRetry) {
-      safeSetInput("");
-      safeSetMessages(prev => [...prev, { role: "user", content: queryText }]);
-      safeSetLoading(true);
+    // Add user and assistant placeholder messages
+    addMessage(docId, {
+      id: Date.now(),
+      role: "user",
+      content: queryText,
+      timestamp: new Date().toISOString()
+    });
+
+    addMessage(docId, {
+      id: Date.now() + 1,
+      role: "assistant",
+      content: "",
+      isStreaming: true,
+      timestamp: new Date().toISOString()
+    });
+
+    const payload = {
+      document_id: docId,
+      message: queryText,
+      full_coverage_mode: fullCoverage
+    };
+
+    if (pendingGraphQuery && pendingGraphQuery.query === queryText) {
+      payload.chunk_ids = pendingGraphQuery.chunk_ids || [];
+      payload.source_section = pendingGraphQuery.source_section || "";
+      payload.source_text = pendingGraphQuery.source_text || "";
+      payload.graph_context_mode = pendingGraphQuery.graph_context_mode || false;
     }
 
-    const token = localStorage.getItem("token") || "";
-    const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-    
-    // Map development Vite ports (5173, 5174, 5200, etc.) to backend FastAPI port (8000)
-    let host = window.location.host;
-    if ((host.includes("localhost") || host.includes("127.0.0.1")) && !host.includes(":8000")) {
-      host = host.replace(/:\d+$/, "") + ":8000";
-    }
+    setRequestStatus(docId, "processing");
+    setPayload(docId, payload);
+    safeSetLoading(true);
 
-    // Requirement 5: Ensure only ONE WebSocket instance exists at a time. Close previous first.
-    if (wsRef.current) {
-      console.log("Closing previous WebSocket connection before opening a new one.");
-      try {
-        wsRef.current.intentionalClose = true;
-        wsRef.current.close();
-      } catch (err) {
-        console.warn("Error closing existing WebSocket instance:", err);
-      }
-      wsRef.current = null;
-    }
-    
-    const wsUrl = `${protocol}://${host}/api/ws/ai/${docId}?token=${encodeURIComponent(token)}`;
-    const ws = new WebSocket(wsUrl);
-    wsRef.current = ws;
-    ws.intentionalClose = false;
+    const apiCall = () => api.post(
+      "/chat",
+      payload,
+      { timeout: 90000 }
+    );
 
-    if (!isRetry) {
-      // Add empty assistant message that will be populated
-      safeSetMessages(prev => [...prev, { 
-        role: "assistant", 
-        content: "",
-        sources: null,
-        debug: null
-      }]);
-    } else {
-      // Clear previous assistant message content so it streams fresh on reconnect retry
-      safeSetMessages(prev => {
-        if (prev.length === 0) return prev;
-        const newMessages = [...prev];
-        const lastIdx = newMessages.length - 1;
-        newMessages[lastIdx] = {
-          ...newMessages[lastIdx],
-          content: "[Connection Replaced. Streaming fresh response...]\n",
-          sources: null,
-          debug: null
-        };
-        return newMessages;
+    // Clear any previous request state for this doc in manager to ensure a fresh request starts
+    requestManager.clear(docId);
+
+    requestManager.startRequest(docId, apiCall)
+      .then((response) => {
+        updateLastMessage(docId, response.data.reply, {
+          sources: response.data.sources,
+          debug: response.data.debug,
+          grounded: response.data.grounded,
+          grounding_confidence: response.data.grounding_confidence
+        });
+        setRequestStatus(docId, "complete");
+        clearPayload(docId);
+        if (isMounted.current) {
+          setLoading(false);
+        }
+      })
+      .catch((error) => {
+        const errMsg = error?.response?.data?.detail || error?.message || "Request failed";
+        updateLastMessage(docId, `Error: ${errMsg}`);
+        setRequestStatus(docId, "error");
+        clearPayload(docId);
+        if (isMounted.current) {
+          setLoading(false);
+        }
       });
-      safeSetLoading(true);
-    }
-
-    ws.onopen = () => {
-      console.log("WebSocket connection established.");
-      ws.send(JSON.stringify({ message: queryText }));
-    };
-
-    ws.onmessage = (e) => {
-      try {
-        const payload = JSON.parse(e.data);
-        if (payload.type === "token") {
-          safeSetLoading(false);
-          safeSetMessages(prev => {
-            if (prev.length === 0) return prev;
-            const newMessages = [...prev];
-            const lastIdx = newMessages.length - 1;
-            newMessages[lastIdx] = {
-              ...newMessages[lastIdx],
-              content: newMessages[lastIdx].content + payload.data
-            };
-            return newMessages;
-          });
-        } else if (payload.type === "done") {
-          ws.intentionalClose = true;
-          safeSetMessages(prev => {
-            if (prev.length === 0) return prev;
-            const newMessages = [...prev];
-            const lastIdx = newMessages.length - 1;
-            newMessages[lastIdx] = {
-              ...newMessages[lastIdx],
-              sources: payload.sources,
-              debug: payload.debug,
-              grounding_confidence: payload.grounding_confidence,
-              grounded: payload.grounded
-            };
-            return newMessages;
-          });
-          ws.close();
-        } else if (payload.type === "error") {
-          ws.intentionalClose = true;
-          safeSetMessages(prev => {
-            if (prev.length === 0) return prev;
-            const newMessages = [...prev];
-            const lastIdx = newMessages.length - 1;
-            newMessages[lastIdx] = {
-              ...newMessages[lastIdx],
-              content: "Error: " + payload.message
-            };
-            return newMessages;
-          });
-          safeSetLoading(false);
-          ws.close();
-        }
-      } catch (err) {
-        console.error("Failed to parse WS message", err);
-      }
-    };
-
-    ws.onerror = (err) => {
-      console.error("WebSocket encountered an error:", err);
-    };
-
-    // Requirement 3 & 4: Handle server disconnects gracefully & implement reconnection attempts
-    ws.onclose = (event) => {
-      console.log(`WebSocket closed (code: ${event.code}, intentional: ${ws.intentionalClose})`);
-      
-      // If disconnect was unintentional, try to reconnect
-      if (!ws.intentionalClose) {
-        if (retryAttempt < 3) {
-          const nextAttempt = retryAttempt + 1;
-          console.warn(`Unexpected connection drop. Reconnecting in 2s (Attempt ${nextAttempt}/3)...`);
-          
-          safeSetMessages(prev => {
-            if (prev.length === 0) return prev;
-            const newMessages = [...prev];
-            const lastIdx = newMessages.length - 1;
-            newMessages[lastIdx] = {
-              ...newMessages[lastIdx],
-              content: newMessages[lastIdx].content + `\n[Reconnecting... Attempt ${nextAttempt}/3]\n`
-            };
-            return newMessages;
-          });
-
-          setTimeout(() => {
-            if (isMounted.current) {
-              sendQuery(queryText, true, nextAttempt);
-            }
-          }, 2000);
-        } else {
-          // Max attempts exceeded
-          console.error("Max reconnection attempts reached. Giving up.");
-          safeSetMessages(prev => {
-            if (prev.length === 0) return prev;
-            const newMessages = [...prev];
-            const lastIdx = newMessages.length - 1;
-            newMessages[lastIdx] = {
-              ...newMessages[lastIdx],
-              content: newMessages[lastIdx].content + "\n[System: Connection lost. Max reconnection attempts reached.]"
-            };
-            return newMessages;
-          });
-          safeSetLoading(false);
-        }
-      }
-    };
   };
 
   const handleSend = () => sendQuery(input);
@@ -343,81 +310,23 @@ export default function Chat() {
   }, [loading]);
 
   useEffect(() => {
-    let timeoutId;
-    if (loading) {
-      setShowTimeoutWarning(false);
-      timeoutId = setTimeout(() => {
-        setShowTimeoutWarning(true);
-        safeSetLoading(false);
-        safeSetMessages(prev => {
-          if (prev.length === 0) return prev;
-          const newMessages = [...prev];
-          const lastIdx = newMessages.length - 1;
-          newMessages[lastIdx] = {
-            ...newMessages[lastIdx],
-            content: "⏱️ Query is complex for current hardware. Showing partial results...",
-            sources: [],
-            debug: { reasoning_steps: ["Query timed out after 90 seconds."] }
-          };
-          return newMessages;
-        });
-        if (wsRef.current) {
-          wsRef.current.intentionalClose = true;
-          wsRef.current.close();
-        }
-      }, 90000);
+    if (!pendingGraphQuery) return;
+    
+    const age = Date.now() - pendingGraphQuery.timestamp;
+    if (age > 5 * 60 * 1000) {
+      clearPendingGraphQuery();
+      return;
     }
-    return () => {
-      clearTimeout(timeoutId);
-    };
-  }, [loading]);
+    
+    setInput(pendingGraphQuery.query);
+    
+    const timer = setTimeout(() => {
+      sendQuery(pendingGraphQuery.query);
+      clearPendingGraphQuery();
+    }, 500);
 
-  const simplifyGraphQuery = (query) => {
-    if (!query) return query;
-    const q = query.trim();
-    if (q.startsWith("Analyze regulatory details") || q.startsWith("Analyze the regulatory details")) {
-      let entity = "";
-      const quoteMatch = q.match(/"([^"]+)"/);
-      if (quoteMatch) {
-        entity = quoteMatch[1];
-      } else {
-        const lastPartMatch = q.match(/associated with (?:the )?(\w+ )?(.+)$/i);
-        if (lastPartMatch) {
-          entity = lastPartMatch[2].replace(/\.+$/, "").trim();
-        }
-      }
-      
-      if (entity) {
-        const lowerQ = q.toLowerCase();
-        if (lowerQ.includes("penalty") || lowerQ.includes("penalties")) {
-          return `What are the penalties for ${entity}?`;
-        } else if (lowerQ.includes("risk") || lowerQ.includes("mitigation")) {
-          return `What are the risks associated with ${entity}?`;
-        } else if (lowerQ.includes("registration") || entity.toLowerCase().includes("registration")) {
-          let cleanEntity = entity;
-          if (entity.toLowerCase().startsWith("registration of ")) {
-            cleanEntity = entity.substring(16);
-          }
-          return `What are the registration requirements for ${cleanEntity}?`;
-        } else if (lowerQ.includes("timeline") || lowerQ.includes("deadline")) {
-          return `What are the compliance timelines for ${entity}?`;
-        } else {
-          return `What are the requirements for ${entity}?`;
-        }
-      }
-    }
-    return query;
-  };
-
-  useEffect(() => {
-    const pendingQuery = localStorage.getItem("pending_copilot_query");
-    if (pendingQuery && docId) {
-      localStorage.removeItem("pending_copilot_query");
-      const simplified = simplifyGraphQuery(pendingQuery);
-      safeSetInput("");
-      sendQuery(simplified);
-    }
-  }, [docId]);
+    return () => clearTimeout(timer);
+  }, [pendingGraphQuery, docId]);
 
   if (!docId) {
     return (
@@ -465,7 +374,13 @@ export default function Chat() {
                     : "bg-white/5 border border-white/10 text-slate-200 rounded-tl-sm"
                 }`}
               >
-                {msg.role === "user" ? msg.content : <ChatMessage content={msg.content} />}
+                {msg.role === "user" ? (
+                  msg.content
+                ) : msg.isStreaming && !msg.content ? (
+                  <ReasoningTimeline />
+                ) : (
+                  <ChatMessage content={msg.content} isNew={idx === messages.length - 1 && !msg.isStreaming && (Date.now() - new Date(msg.timestamp || 0).getTime() < 8000)} />
+                )}
               </div>
 
               {msg.role === "assistant" && (msg.grounding_confidence != null || msg.sources?.length > 0) && (
@@ -515,36 +430,6 @@ export default function Chat() {
               )}
             </div>
           ))}
-
-          {loading && (
-             <div className="flex flex-col items-start space-y-2">
-                <div className="flex items-center gap-3 p-4 rounded-lg bg-gray-800/50 border border-teal-900/30">
-                  
-                  {/* 3 pulsing dots */}
-                  {!isJetson && (
-                    <div className="flex gap-1">
-                      {[0,1,2].map(i => (
-                        <div key={i}
-                          className="w-2 h-2 rounded-full bg-teal-400"
-                          style={{
-                            animation: `pulse 1.4s ease-in-out infinite`,
-                            animationDelay: `${i*0.2}s`
-                          }}
-                        />
-                      ))}
-                    </div>
-                  )}
-                  
-                  {/* Rotating message + timer */}
-                  <span className="text-sm text-gray-300">
-                    {THINKING_MESSAGES[thinkingIndex]}
-                    <span className="text-gray-500 ml-2">
-                      (Processing... {formatTime(elapsed)})
-                    </span>
-                  </span>
-                </div>
-             </div>
-          )}
           <div ref={endRef} />
         </div>
 
@@ -593,6 +478,29 @@ export default function Chat() {
               Transcribing offline audio via faster-whisper...
             </div>
           )}
+          
+          <div className="mb-4 flex items-center justify-between">
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setFullCoverage(prev => !prev)}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
+                  fullCoverage
+                    ? "bg-mint/20 text-mint border-mint/40 shadow-[0_0_10px_rgba(45,212,191,0.15)]"
+                    : "bg-white/5 text-slate-400 border-white/10 hover:bg-white/10 hover:text-white"
+                }`}
+              >
+                <span className="material-symbols-outlined text-[14px]">
+                  {fullCoverage ? "verified_user" : "manage_search"}
+                </span>
+                {fullCoverage ? "Full Document Coverage Mode" : "Standard Context Mode"}
+              </button>
+            </div>
+            <span className="text-[10px] text-slate-500 font-mono">
+              {fullCoverage ? "Retrieves complete document evidence chronologically" : "Retrieves targeted compliance semantic blocks"}
+            </span>
+          </div>
+
           <div className="flex gap-4 items-end">
             <textarea
               className="flex-1 bg-white/5 border border-white/10 rounded-2xl p-4 text-white placeholder-slate-400 focus:outline-none focus:border-mint focus:border-mint/30 focus:bg-white/10 resize-none transition-all"

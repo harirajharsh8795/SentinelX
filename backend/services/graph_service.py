@@ -33,11 +33,13 @@ def _get_document_chunks(document_id: str) -> List[Dict[str, Any]]:
         where={"doc_id": document_id},
         include=["documents", "metadatas"],
     )
+    ids = results.get("ids", []) or []
     docs = results.get("documents", []) or []
     metas = results.get("metadatas", []) or []
     chunks = []
-    for text, meta in zip(docs, metas):
+    for cid, text, meta in zip(ids, docs, metas):
         chunks.append({
+            "id": cid,
             "text": text,
             "section_title": (meta or {}).get("section_title", "General"),
             "chunk_index": (meta or {}).get("chunk_index", 0),
@@ -47,22 +49,53 @@ def _get_document_chunks(document_id: str) -> List[Dict[str, Any]]:
     return chunks
 
 
-def _enrich_nodes_with_sources(nodes: List[dict], chunks: List[dict]) -> List[dict]:
-    """Attach best-matching source snippet to each node by label keyword overlap."""
+def _enrich_nodes_with_sources(nodes: List[dict], chunks: List[dict], document_id: str = None) -> List[dict]:
+    """Attach top-N (N=3) matching source snippets, neighboring chunks, and section metadata to each node."""
+    total_chunks = len(chunks)
     for node in nodes:
         label_words = set(node.get("label", "").lower().split())
-        best = None
-        best_score = 0
+        scored_chunks = []
         for ch in chunks:
             text_lower = ch["text"].lower()
             score = sum(1 for w in label_words if len(w) > 3 and w in text_lower)
-            if score > best_score:
-                best_score = score
-                best = ch
-        if best:
-            node["source_section"] = best["section_title"]
-            node["source_snippet"] = best["text"][:300]
-            node["chunk_index"] = best["chunk_index"]
+            if score > 0:
+                scored_chunks.append((score, ch))
+        
+        # Sort by score descending
+        scored_chunks.sort(key=lambda x: x[0], reverse=True)
+        matched_chunks = [ch for _, ch in scored_chunks[:3]]
+        
+        if matched_chunks:
+            node["chunk_ids"] = [ch["id"] for ch in matched_chunks]
+            node["source_text"] = "\n\n".join([ch["text"] for ch in matched_chunks])
+            
+            best_chunk = matched_chunks[0]
+            node["source_section"] = best_chunk["section_title"]
+            node["source_snippet"] = best_chunk["text"][:300]
+            node["chunk_index"] = best_chunk["chunk_index"]
+            node["section_metadata"] = list(dict.fromkeys([ch["section_title"] for ch in matched_chunks if ch.get("section_title")]))
+            
+            # Store neighboring chunk IDs (idx - 1 and idx + 1)
+            prefix = document_id if document_id else best_chunk.get("doc_id", "doc")
+            neighbor_ids = []
+            for ch in matched_chunks:
+                idx = ch.get("chunk_index")
+                if idx is not None:
+                    if idx > 0:
+                        neighbor_ids.append(f"{prefix}-{idx - 1}")
+                    if idx < total_chunks - 1:
+                        neighbor_ids.append(f"{prefix}-{idx + 1}")
+            neighbor_ids = list(dict.fromkeys(neighbor_ids))
+            node["neighbor_chunk_ids"] = [nid for nid in neighbor_ids if nid not in node["chunk_ids"]]
+            node["document_id"] = prefix
+        else:
+            node["source_section"] = "General"
+            node["source_snippet"] = ""
+            node["source_text"] = ""
+            node["chunk_ids"] = []
+            node["neighbor_chunk_ids"] = []
+            node["section_metadata"] = []
+            node["document_id"] = document_id
     return nodes
 
 
@@ -128,6 +161,8 @@ def _inject_task_actions(nodes: List[dict], edges: List[dict], document_id: str)
             "department": task["department"],
             "source_section": "MAP Task",
             "source_snippet": f"Department: {task['department']}, Deadline: {task['deadline']}",
+            "source_text": f"Task Action: {task['title']}. Assigned to {task['department']} department with deadline {task['deadline']}.",
+            "chunk_ids": [],
             "status": task["status"],
         })
         dept_node = next((n for n in nodes if n.get("type") == "Department" and task["department"].lower() in n.get("label", "").lower()), None)
@@ -135,9 +170,28 @@ def _inject_task_actions(nodes: List[dict], edges: List[dict], document_id: str)
             edges.append({"source": dept_node["id"], "target": node_id, "label": "assigned_action", "weight": 1.0})
     return nodes, edges
 
-
 _graph_cache = {}
 
+def _set_graph_cache(document_id: str, graph_data: dict):
+    global _graph_cache
+    if len(_graph_cache) >= 50:
+        try:
+            oldest = next(iter(_graph_cache))
+            del _graph_cache[oldest]
+            logger.info(f"Evicted oldest knowledge graph cache entry: {oldest}")
+        except Exception:
+            pass
+    _graph_cache[document_id] = graph_data
+
+def invalidate_graph_cache(document_id: str = None):
+    global _graph_cache
+    if document_id:
+        if document_id in _graph_cache:
+            del _graph_cache[document_id]
+            logger.info(f"Invalidated knowledge graph cache for document: {document_id}")
+    else:
+        _graph_cache.clear()
+        logger.info("Invalidated entire knowledge graph cache")
 
 def generate_knowledge_graph(document_id: str) -> dict:
     from database.database import get_db_context
@@ -154,8 +208,10 @@ def generate_knowledge_graph(document_id: str) -> dict:
                     res = json.loads(doc.knowledge_graph)
                 elif isinstance(doc.knowledge_graph, dict):
                     res = doc.knowledge_graph
-                _graph_cache[document_id] = res
-                return res
+                # Bypass cached graph if it is legacy (lacks chunk_ids)
+                if res.get("nodes") and len(res["nodes"]) > 0 and "chunk_ids" in res["nodes"][0]:
+                    _set_graph_cache(document_id, res)
+                    return res
             except Exception as e:
                 logger.warning(f"Error loading cached knowledge_graph JSON: {e}")
 
@@ -228,9 +284,23 @@ DOCUMENT:
                 "weight": float(item.get("weight", 1.0)),
             })
 
-    nodes = _enrich_nodes_with_sources(nodes, chunks)
+    nodes = _enrich_nodes_with_sources(nodes, chunks, document_id)
     nodes, edges = _inject_task_actions(nodes, edges, document_id)
     nodes = _compute_risk_propagation(nodes, edges)
+
+    # Ensure document_id, chunk_ids, and source_text are populated on every single node
+    for node in nodes:
+        node["document_id"] = document_id
+        if "chunk_ids" not in node:
+            node["chunk_ids"] = []
+        if "neighbor_chunk_ids" not in node:
+            node["neighbor_chunk_ids"] = []
+        if "section_metadata" not in node:
+            node["section_metadata"] = []
+        if "source_text" not in node:
+            node["source_text"] = ""
+        if "source_section" not in node:
+            node["source_section"] = "General"
 
     high_risk = [n for n in nodes if n.get("risk_score", 0) >= 0.6]
     max_prop = max((n.get("propagation_level", 0) for n in nodes), default=0)
@@ -276,7 +346,7 @@ DOCUMENT:
             doc.knowledge_graph = result_dict
             db.commit()
 
-    _graph_cache[document_id] = result_dict
+    _set_graph_cache(document_id, result_dict)
     return result_dict
 
 

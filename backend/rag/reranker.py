@@ -65,12 +65,29 @@ def jaccard_similarity(text1: str, text2: str) -> float:
         return 0.0
     return len(set1.intersection(set2)) / len(set1.union(set2))
 
+def cosine_similarity(v1: List[float], v2: List[float]) -> float:
+    if not v1 or not v2:
+        return 0.0
+    dot = sum(a * b for a, b in zip(v1, v2))
+    norm1 = sum(a * a for a in v1) ** 0.5
+    norm2 = sum(b * b for b in v2) ** 0.5
+    if norm1 == 0.0 or norm2 == 0.0:
+        return 0.0
+    return dot / (norm1 * norm2)
+
+def chunk_similarity(c1: Dict[str, Any], c2: Dict[str, Any]) -> float:
+    v1 = c1.get("embedding")
+    v2 = c2.get("embedding")
+    if v1 and v2:
+        return cosine_similarity(v1, v2)
+    return jaccard_similarity(c1.get("text", ""), c2.get("text", ""))
+
 def rerank_chunks(query: str, chunks: List[Dict[str, Any]], top_k: int = 3, lambda_mult: float = 0.7) -> List[Dict[str, Any]]:
     """
     Phase 8: Enhanced Reranking Layer with:
     1. Short fragment filtering (<80 chars)
     2. Regulatory action word boosting
-    3. MMR (Maximal Marginal Relevance) for diversity
+    3. MMR (Maximal Marginal Relevance) for diversity using embedding cosine similarity
     """
     if not chunks:
         return []
@@ -89,12 +106,17 @@ def rerank_chunks(query: str, chunks: List[Dict[str, Any]], top_k: int = 3, lamb
         
         bm25_score = bm25_scores[idx]
             
-        dist = chunk.get("score", 0.0)
-        # Handle both Cosine (close to 0 is similar) and L2 distances dynamically
-        if dist < 1.0:
-            vector_score = 1.0 - dist
+        score_val = chunk.get("score", 0.0)
+        # If retriever already stored true similarity score (detected by 'distance' key presence)
+        if "distance" in chunk:
+            vector_score = score_val
         else:
-            vector_score = 1.0 / (1.0 + dist)
+            dist = score_val
+            # Handle both Cosine and L2 distances dynamically
+            if dist < 1.0:
+                vector_score = 1.0 - dist
+            else:
+                vector_score = 1.0 / (1.0 + dist)
 
         # Phase 8: Regulatory action word boost
         reg_boost = 0.0
@@ -120,7 +142,7 @@ def rerank_chunks(query: str, chunks: List[Dict[str, Any]], top_k: int = 3, lamb
             if not selected:
                 redundancy_penalty = 0.0
             else:
-                similarities = [jaccard_similarity(chunk["text"], sel["text"]) for sel in selected]
+                similarities = [chunk_similarity(chunk, sel) for sel in selected]
                 redundancy_penalty = max(similarities)
                 
             # MMR Equation: score = Lambda * Relevance - (1 - Lambda) * Redundancy
@@ -137,7 +159,7 @@ def rerank_chunks(query: str, chunks: List[Dict[str, Any]], top_k: int = 3, lamb
         selected.append(best_chunk)
         candidates.pop(best_idx)
         
-    # Apply score threshold 0.3 filter, keeping at least 1 chunk to prevent empty context
+    # Apply score threshold 0.25 filter, keeping at least 1 chunk to prevent empty context
     filtered_selected = []
     for i, c in enumerate(selected):
         if c.get("base_relevance", 0.0) >= 0.25 or i == 0:

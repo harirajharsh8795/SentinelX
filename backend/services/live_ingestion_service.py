@@ -4,7 +4,7 @@ Discovers RBI/SEBI/CERT-IN circulars, downloads PDFs, and indexes into ChromaDB.
 """
 import asyncio
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from database.database import SessionLocal
@@ -38,7 +38,7 @@ def _record_scrape(
         existing.status = status
         existing.document_id = document_id
         existing.error_message = error
-        existing.scraped_at = datetime.utcnow()
+        existing.scraped_at = datetime.now(timezone.utc).replace(tzinfo=None)
     else:
         db.add(ScrapeRecord(
             regulator=item.regulator,

@@ -1,0 +1,16 @@
+RESERVE BANK OF INDIA — MASTER DIRECTION ON KYC (KNOW YOUR CUSTOMER) NORMS
+
+Section 1 — Applicability
+All Scheduled Commercial Banks, Regional Rural Banks, and regulated entities shall implement risk-based KYC policies approved by the Board.
+
+Section 2 — Customer Due Diligence
+Banks must obtain PAN, proof of identity, and proof of address for all individual customers. Enhanced Due Diligence (EDD) is mandatory for Politically Exposed Persons (PEPs) and high-risk jurisdictions.
+
+Section 3 — Periodic Updation
+Full KYC refresh shall be completed at least once every 10 years for low-risk customers and every 2 years for high-risk customers. Re-KYC triggers include change in ownership, suspicious activity, or address mismatch.
+
+Section 4 — Reporting Obligations
+Suspicious Transaction Reports (STR) must be filed with FIU-IND within 7 days of detection. Non-compliance attracts monetary penalty under Section 13 of PMLA.
+
+Section 5 — Digital Onboarding
+Video-based Customer Identification Process (V-CIP) is permitted subject to liveness detection, geo-tagging, and audit trail retention for 5 years.

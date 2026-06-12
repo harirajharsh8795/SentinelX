@@ -1,0 +1,15 @@
+﻿
+================================================================================
+ 1. AUTHENTICATION
+================================================================================
+Authenticated successfully.
+
+================================================================================
+ 2. MULTI-DOCUMENT INGESTION
+================================================================================
+Active documents in DB: 2
+File A Path: PDF FOR TEST/CYBERSECURITYRBI.pdf (exists: False)
+File B Path: PDF FOR TEST/RISK MANAGE RBI.pdf (exists: False)
+Document A ID: b14477ec-7ebe-421d-a074-0bcffac638b4
+Document B ID: None
+Error: Could not retrieve or ingest two distinct documents.

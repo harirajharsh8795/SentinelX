@@ -3,7 +3,7 @@ Phase 7 — Master Regulatory Corpus Ingestion Pipeline
 Bulk-ingests seed files and PDFs from data/corpus/ into ChromaDB + SQLite.
 """
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
@@ -124,7 +124,7 @@ def _update_source_stats(code: str, new_docs: int) -> None:
     src = db.query(RegulatorySource).filter(RegulatorySource.code == code).first()
     if src:
         src.document_count = (src.document_count or 0) + new_docs
-        src.last_ingested_at = datetime.utcnow()
+        src.last_ingested_at = datetime.now(timezone.utc).replace(tzinfo=None)
     db.commit()
     db.close()
 

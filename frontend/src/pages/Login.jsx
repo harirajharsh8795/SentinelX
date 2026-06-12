@@ -83,7 +83,7 @@ export default function Login() {
             {isRegister ? "Initialize Access" : "Secure Authentication"}
           </h1>
           <p className="text-textSub font-sans text-sm">
-            {isRegister ? "Provision a new operator profile." : "Enter Sentinel management console credentials."}
+            {isRegister ? "Provision a new operator profile." : "Enter SentinelX management console credentials."}
           </p>
         </div>
 
@@ -99,7 +99,7 @@ export default function Login() {
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               className="w-full px-4 py-3 input-futuristic"
-              placeholder="operator@sentinel.ai"
+              placeholder="operator@sentinelx.ai"
             />
           </div>
 

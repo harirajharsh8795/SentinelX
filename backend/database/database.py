@@ -6,7 +6,7 @@ import logging
 from contextlib import contextmanager
 from typing import Callable, Any
 from sqlalchemy import create_engine, event
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.exc import OperationalError
 
